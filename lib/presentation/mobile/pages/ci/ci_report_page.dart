@@ -1,7 +1,6 @@
 // lib/presentation/mobile/pages/ci/ci_report_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
@@ -134,8 +133,6 @@ class CiReportPage extends ConsumerWidget {
     final notesCtrl = TextEditingController(text: ci['notes'] ?? '');
     final findings = TextEditingController(text: ci['findings'] ?? '');
 
-    final loanAmount =
-        (ci['loans']?['amount'] as num?)?.toDouble() ?? 0;
     final loanNumber = ci['loans']?['loan_number'] as String? ?? '-';
     final borrowerName =
         ci['loans']?['borrower_name'] as String? ?? '-';

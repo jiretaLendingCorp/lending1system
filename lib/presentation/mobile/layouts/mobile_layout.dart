@@ -8,8 +8,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../providers/theme_provider.dart';
 
 class MobileLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -204,7 +202,6 @@ class _NavButtonState extends State<_NavButton>
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = AppColors.primary500;
     final inactiveColor = widget.isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;

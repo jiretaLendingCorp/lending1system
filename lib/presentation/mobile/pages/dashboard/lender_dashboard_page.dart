@@ -10,7 +10,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../providers/auth_provider.dart';
-import '../../../../providers/theme_provider.dart';
 
 // ── Providers ─────────────────────────────────────────────────
 
@@ -259,10 +258,10 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      _ActionDef('Apply Loan',  Icons.add_card_rounded,        AppColors.primary500, AppConstants.routeLenderApply),
-      _ActionDef('Pay Now',     Icons.payment_rounded,         AppColors.success,    AppConstants.routeLenderLoans),
-      _ActionDef('Documents',   Icons.description_rounded,     AppColors.warning,    AppConstants.routeLenderDocuments),
-      _ActionDef('Profile',     Icons.manage_accounts_rounded, AppColors.accent,     AppConstants.routeLenderProfile),
+      const _ActionDef('Apply Loan',  Icons.add_card_rounded,        AppColors.primary500, AppConstants.routeLenderApply),
+      const _ActionDef('Pay Now',     Icons.payment_rounded,         AppColors.success,    AppConstants.routeLenderLoans),
+      const _ActionDef('Documents',   Icons.description_rounded,     AppColors.warning,    AppConstants.routeLenderDocuments),
+      const _ActionDef('Profile',     Icons.manage_accounts_rounded, AppColors.accent,     AppConstants.routeLenderProfile),
     ];
 
     return Column(

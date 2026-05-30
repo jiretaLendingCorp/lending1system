@@ -291,7 +291,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   void _showChangePasswordSheet(BuildContext context) {
-    final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
     final key = GlobalKey<FormState>();

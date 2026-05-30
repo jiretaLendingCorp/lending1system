@@ -1,7 +1,6 @@
 // lib/presentation/mobile/pages/collections/collection_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
@@ -88,7 +87,6 @@ class _RecordTabState extends ConsumerState<_RecordTab> {
   final _amountCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   String? _selectedLoanId;
-  String? _selectedLoanLabel;
   double _selectedLoanBalance = 0;
   String _status = 'collected';
   DateTime _date = DateTime.now();
@@ -181,7 +179,7 @@ class _RecordTabState extends ConsumerState<_RecordTab> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text('Error: $e'),
             data: (loans) => DropdownButtonFormField<String>(
-              value: _selectedLoanId,
+              initialValue: _selectedLoanId,
               decoration: InputDecoration(
                 labelText: 'Select Loan',
                 prefixIcon: const Icon(Icons.receipt_long_outlined),
@@ -225,8 +223,6 @@ class _RecordTabState extends ConsumerState<_RecordTab> {
                     (l['total_payable'] as num?)?.toDouble() ?? 0;
                 setState(() {
                   _selectedLoanId = v;
-                  _selectedLoanLabel =
-                      '${l['borrower_name']} - Loan #${l['loan_number']}';
                   _selectedLoanBalance = totalPayable - totalPaid;
                 });
               },
@@ -311,7 +307,7 @@ class _RecordTabState extends ConsumerState<_RecordTab> {
 
           // Status
           DropdownButtonFormField<String>(
-            value: _status,
+            initialValue: _status,
             decoration: InputDecoration(
               labelText: 'Collection Status',
               prefixIcon: const Icon(Icons.fact_check_outlined),

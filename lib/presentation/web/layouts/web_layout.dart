@@ -275,7 +275,6 @@ class _NavItem extends StatefulWidget {
   final bool     collapsed;
   final String   current;
   final bool     hidden;
-  final int?     badge;
 
   const _NavItem({
     required this.icon,
@@ -284,7 +283,6 @@ class _NavItem extends StatefulWidget {
     required this.collapsed,
     required this.current,
     this.hidden = false,
-    this.badge,          // FIX: was missing — caused final_not_initialized_constructor
   });
 
   @override
