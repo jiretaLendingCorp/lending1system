@@ -85,12 +85,16 @@ class _LoanApplicationPageState extends ConsumerState<LoanApplicationPage> {
     try {
       final uid = Supabase.instance.client.auth.currentUser?.id;
 
-      // Generate loan number
-      final count = await Supabase.instance.client
+      // FIX: Supabase Flutter v2 removed FetchOptions and the two-argument
+      // .select(). Use .count(CountOption.exact) instead.
+      // OLD (broken): .select('id', const FetchOptions(count: CountOption.exact))
+      // NEW: .select('id').count(CountOption.exact)
+      final countResponse = await Supabase.instance.client
           .from('loans')
-          .select('id', const FetchOptions(count: CountOption.exact));
+          .select('id')
+          .count(CountOption.exact);
       final loanNumber =
-          'LN${DateFormat('yyyyMM').format(DateTime.now())}${((count.count ?? 0) + 1).toString().padLeft(4, '0')}';
+          'LN${DateFormat('yyyyMM').format(DateTime.now())}${((countResponse.count) + 1).toString().padLeft(4, '0')}';
 
       await Supabase.instance.client.from('loans').insert({
         'loan_number': loanNumber,
