@@ -385,7 +385,7 @@ class _Step1 extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: gender,
+                initialValue: gender,
                 decoration: InputDecoration(
                   labelText: 'Gender',
                   border: OutlineInputBorder(
@@ -457,7 +457,7 @@ class _Step2 extends StatelessWidget {
             validator: (v) => v!.isEmpty ? 'Required' : null),
         const SizedBox(height: 14),
         DropdownButtonFormField<int>(
-          value: termDays,
+          initialValue: termDays,
           decoration: InputDecoration(
             labelText: 'Loan Term',
             prefixIcon: const Icon(Icons.calendar_today_outlined),
@@ -579,10 +579,10 @@ class _Step3 extends StatelessWidget {
         const SizedBox(height: 20),
         // Co-borrower toggle
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Add Co-Borrower',
+          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Add Co-Borrower',
                 style: TextStyle(fontWeight: FontWeight.w600)),
-            const Text('Optional guarantor/co-signer',
+            Text('Optional guarantor/co-signer',
                 style: TextStyle(color: Colors.grey, fontSize: 12)),
           ]),
           Switch(value: hasCoBorrower, onChanged: onToggle),

@@ -228,11 +228,11 @@ class _SidebarLogo extends StatelessWidget {
           if (!collapsed) ...[
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
+              child: const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Jireta Loans',
                     style: TextStyle(
                       fontFamily:  'Poppins',
@@ -275,6 +275,7 @@ class _NavItem extends StatefulWidget {
   final bool     collapsed;
   final String   current;
   final bool     hidden;
+  final int?     badge;
 
   const _NavItem({
     required this.icon,
@@ -283,6 +284,7 @@ class _NavItem extends StatefulWidget {
     required this.collapsed,
     required this.current,
     this.hidden = false,
+    this.badge,
   });
 
   @override
@@ -299,8 +301,8 @@ class _NavItemState extends State<_NavItem> {
     final isActive = widget.current.startsWith(widget.route);
     final isDark   = Theme.of(context).brightness == Brightness.dark;
 
-    final activeColor  = AppColors.primary500;
-    final activeBg     = AppColors.primary50;
+    const activeColor  = AppColors.primary500;
+    const activeBg     = AppColors.primary50;
     final activeBgDark = AppColors.primary900.withValues(alpha: 0.4);
     final hoverBg      = isDark
         ? AppColors.darkSurfaceVariant

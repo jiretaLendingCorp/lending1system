@@ -172,7 +172,7 @@ class CiReportPage extends ConsumerWidget {
                   style: const TextStyle(color: Colors.grey, fontSize: 13)),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: selectedStatus,
+                initialValue: selectedStatus,
                 decoration: InputDecoration(
                   labelText: 'Status',
                   border: OutlineInputBorder(

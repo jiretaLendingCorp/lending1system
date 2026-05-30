@@ -270,17 +270,17 @@ class AppTheme {
       brightness:     Brightness.dark,
       scaffoldBackgroundColor: AppColors.darkBackground,
 
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.darkSurface,
         foregroundColor: AppColors.darkText,
         elevation:       0,
         scrolledUnderElevation: 1,
-        systemOverlayStyle: const SystemUiOverlayStyle(
+        systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor:           Colors.transparent,
           statusBarBrightness:      Brightness.dark,
           statusBarIconBrightness:  Brightness.light,
         ),
-        titleTextStyle: const TextStyle(
+        titleTextStyle: TextStyle(
           fontFamily:  _fontFamily,
           fontSize:    18,
           fontWeight:  FontWeight.w600,

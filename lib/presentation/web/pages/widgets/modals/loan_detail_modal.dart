@@ -39,7 +39,7 @@ class LoanDetailModal extends StatelessWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
                     child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 22),
                   ),
                   const SizedBox(width: 14),
@@ -68,7 +68,7 @@ class LoanDetailModal extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Borrower Info
-                    _SectionTitle('Borrower Information'),
+                    const _SectionTitle('Borrower Information'),
                     const SizedBox(height: 12),
                     _InfoGrid([
                       ('Name',  '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'),
@@ -80,7 +80,7 @@ class LoanDetailModal extends StatelessWidget {
                     const Divider(height: 32),
 
                     // Loan Details
-                    _SectionTitle('Loan Details'),
+                    const _SectionTitle('Loan Details'),
                     const SizedBox(height: 12),
                     _InfoGrid([
                       ('Principal',   '₱${_fmt((loan['principal_amount'] as num?)?.toDouble() ?? 0)}'),
@@ -94,7 +94,7 @@ class LoanDetailModal extends StatelessWidget {
                     const Divider(height: 32),
 
                     // Payment Schedule
-                    _SectionTitle('Payment Schedule'),
+                    const _SectionTitle('Payment Schedule'),
                     const SizedBox(height: 12),
                     _InfoGrid([
                       ('Frequency',      _freqLabel(loan['payment_frequency'] as String? ?? '')),
@@ -107,7 +107,7 @@ class LoanDetailModal extends StatelessWidget {
 
                     if ((loan['purpose'] as String?)?.isNotEmpty == true) ...[
                       const Divider(height: 32),
-                      _SectionTitle('Loan Purpose'),
+                      const _SectionTitle('Loan Purpose'),
                       const SizedBox(height: 8),
                       Container(
                         width: double.infinity,
@@ -122,7 +122,7 @@ class LoanDetailModal extends StatelessWidget {
 
                     if ((loan['remarks'] as String?)?.isNotEmpty == true) ...[
                       const SizedBox(height: 16),
-                      _SectionTitle('Remarks'),
+                      const _SectionTitle('Remarks'),
                       const SizedBox(height: 8),
                       Container(
                         width: double.infinity,

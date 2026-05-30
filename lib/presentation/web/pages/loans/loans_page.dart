@@ -9,8 +9,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../widgets/modals/loan_detail_modal.dart';
 import '../widgets/modals/approve_loan_modal.dart';
-import '../widgets/modals/assign_ci_modal.dart';
-import '../widgets/web_data_table.dart';
 import '../widgets/status_badge.dart';
 
 // ── Providers ────────────────────────────────────────────────
@@ -21,7 +19,7 @@ final loansPageProvider   = StateProvider<int>((ref) => 0);
 
 final loansListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final filter = ref.watch(loansFilterProvider);
-  final search = ref.watch(loansSearchProvider);
+  ref.watch(loansSearchProvider);
   final page   = ref.watch(loansPageProvider);
 
   var query = Supabase.instance.client
@@ -185,10 +183,10 @@ class _StatusFilterRow extends StatelessWidget {
                 ),
                 selected:       selected,
                 onSelected:     (_) => onSelect(f.$1),
-                backgroundColor: color.withOpacity(0.08),
+                backgroundColor: color.withValues(alpha: 0.08),
                 selectedColor:   color,
                 checkmarkColor:  Colors.white,
-                side: BorderSide(color: color.withOpacity(selected ? 0 : 0.3)),
+                side: BorderSide(color: color.withValues(alpha: selected ? 0 : 0.3)),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               ),
             ),
@@ -311,7 +309,7 @@ class _LoansTable extends StatelessWidget {
                 color: WidgetStateProperty.resolveWith((states) {
                   if (i.isOdd) {
                     return isDark
-                        ? AppColors.darkSurfaceVariant.withOpacity(0.3)
+                        ? AppColors.darkSurfaceVariant.withValues(alpha: 0.3)
                         : AppColors.lightSurfaceVariant;
                   }
                   return null;
@@ -474,7 +472,7 @@ class _TableActionBtnState extends State<_TableActionBtn> {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-              color:        _hovered ? widget.color.withOpacity(0.12) : Colors.transparent,
+              color:        _hovered ? widget.color.withValues(alpha: 0.12) : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(widget.icon, size: 18, color: widget.color),

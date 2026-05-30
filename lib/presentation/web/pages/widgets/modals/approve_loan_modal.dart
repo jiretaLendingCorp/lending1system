@@ -323,7 +323,7 @@ class _AssignCIModalState extends State<AssignCIModal> {
 
       // Notify rider
       final rider = _riders.firstWhere((r) => r['id'] == _selectedRiderId, orElse: () => {});
-      final riderUser = rider['users'] as Map? ?? {};
+      final _ = rider['users'] as Map? ?? {};
       await sb.from('users').select('id').eq('id', _selectedRiderId!);
 
       if (mounted) {

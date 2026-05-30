@@ -441,18 +441,18 @@ class _SystemTab extends ConsumerWidget {
                     .titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
-            _SettingsTile(
+            const _SettingsTile(
               icon: Icons.percent,
               title: 'Default Interest Rate',
               subtitle: 'Set the default loan interest rate',
-              trailing: const Text('5%',
+              trailing: Text('5%',
                   style: TextStyle(fontWeight: FontWeight.bold)),
             ),
-            _SettingsTile(
+            const _SettingsTile(
               icon: Icons.calendar_today,
               title: 'Default Loan Term',
               subtitle: 'Default repayment period',
-              trailing: const Text('30 days',
+              trailing: Text('30 days',
                   style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             _SettingsTile(

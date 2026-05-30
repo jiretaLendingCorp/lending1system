@@ -193,7 +193,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Rider Shell (Mobile Floating Nav) ────────────────
       ShellRoute(
         builder: (context, state, child) =>
-            MobileLayout(child: child, role: 'rider'),
+            MobileLayout(role: 'rider', child: child),
         routes: [
           GoRoute(
             path: AppConstants.routeRiderDashboard,
@@ -235,7 +235,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Lender Shell (Mobile Floating Nav) ───────────────
       ShellRoute(
         builder: (context, state, child) =>
-            MobileLayout(child: child, role: 'lender'),
+            MobileLayout(role: 'lender', child: child),
         routes: [
           GoRoute(
             path: AppConstants.routeLenderDashboard,
