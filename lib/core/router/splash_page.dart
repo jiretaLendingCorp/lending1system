@@ -1,4 +1,17 @@
 // lib/core/router/splash_page.dart
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX SUMMARY (Race Condition — Authenticated Users Sent to Login):
+//
+// BUG: _navigate() called ref.read(authStateProvider).value which reads the
+//   SYNCHRONOUS snapshot of a FutureProvider. Right after the 2-second splash
+//   delay the future has likely NOT resolved yet, so .value is null → role is ''
+//   → all authenticated users were redirected to the login page instead of their
+//   dashboard. This is especially bad on slow connections.
+//
+// FIX: Use `await ref.read(authStateProvider.future)` to wait for the DB fetch
+//   to complete before deciding where to navigate. Added a timeout guard so the
+//   splash doesn't hang forever if Supabase is unreachable.
+// ═══════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,7 +50,20 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       return;
     }
 
-    final user = ref.read(authStateProvider).value;
+    // FIX ─ Await the future instead of reading a potentially-null snapshot.
+    // A 5-second timeout prevents the splash from hanging on network issues.
+    Map<String, dynamic>? user;
+    try {
+      user = await ref
+          .read(authStateProvider.future)
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Timeout or fetch error → treat as unauthenticated.
+      user = null;
+    }
+
+    if (!mounted) return;
+
     final role = user?['role'] as String? ?? '';
 
     switch (role) {
@@ -52,6 +78,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
         context.go(AppConstants.routeLenderDashboard);
         break;
       default:
+        // Unknown or empty role → send to appropriate login page.
         context.go(kIsWeb
             ? AppConstants.routeWebLogin
             : AppConstants.routeMobileLogin);
@@ -94,10 +121,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
             const Text(
               'Jireta Loans',
               style: TextStyle(
-                fontFamily:  'Poppins',
-                color:       Colors.white,
-                fontSize:    28,
-                fontWeight:  FontWeight.w700,
+                fontFamily:    'Poppins',
+                color:         Colors.white,
+                fontSize:      28,
+                fontWeight:    FontWeight.w700,
                 letterSpacing: -0.5,
               ),
             )
@@ -110,10 +137,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
             const Text(
               '& Credit Corp. 1996',
               style: TextStyle(
-                fontFamily:  'Poppins',
-                color:       Colors.white70,
-                fontSize:    14,
-                fontWeight:  FontWeight.w400,
+                fontFamily: 'Poppins',
+                color:      Colors.white70,
+                fontSize:   14,
+                fontWeight: FontWeight.w400,
                 letterSpacing: 0.5,
               ),
             )

@@ -1,4 +1,22 @@
 // lib/main.dart
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX SUMMARY (Memory / Listener Leak):
+//
+// BUG: _showLocalNotification() contained two stream subscriptions:
+//
+//   FirebaseMessaging.onMessage.listen((_) {});           // ← new sub every call
+//   FirebaseMessaging.instance.onTokenRefresh.listen((_) {}); // ← same
+//
+//   These are called EVERY TIME a foreground notification arrives, creating a
+//   new dangling StreamSubscription each time. After N notifications you have N
+//   leaked subscriptions consuming memory and CPU for the lifetime of the app.
+//
+// FIX: Remove the two rogue listen() calls from _showLocalNotification().
+//   Both streams are already subscribed in _setupFCM() which runs once at
+//   startup — so nothing is lost.  If you need to handle token-refresh (e.g.
+//   to push the new token to Supabase), wire it up once in _setupFCM().
+// ═══════════════════════════════════════════════════════════════════════════
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -47,7 +65,7 @@ Future<void> main() async {
   // Initialize local notifications
   await _initLocalNotifications();
 
-  // Request FCM permissions
+  // Request FCM permissions + wire up streams ONCE
   await _setupFCM();
 
   runApp(
@@ -72,7 +90,7 @@ Future<void> _initLocalNotifications() async {
 
   const InitializationSettings initSettings = InitializationSettings(
     android: androidSettings,
-    iOS: iosSettings,
+    iOS:     iosSettings,
   );
 
   await flutterLocalNotificationsPlugin.initialize(initSettings);
@@ -95,20 +113,26 @@ Future<void> _setupFCM() async {
   final messaging = FirebaseMessaging.instance;
 
   await messaging.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
+    alert:       true,
+    badge:       true,
+    sound:       true,
     provisional: false,
   );
 
-  // Foreground messages
+  // Foreground messages — subscribed ONCE here, nowhere else.
   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
     _showLocalNotification(message);
   });
 
   // App opened from notification
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    // Navigate based on message data if needed
+    // Navigate based on message data if needed.
+  });
+
+  // Token refresh — subscribed ONCE here.
+  // If you need to store the new token in Supabase, do it here.
+  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+    // TODO: call authNotifier.updateFcmToken(newToken) if you have a ref.
   });
 }
 
@@ -122,8 +146,8 @@ void _showLocalNotification(RemoteMessage message) {
       'Lending Notifications',
       channelDescription: 'Jireta Loans & Credit Corp. notifications',
       importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
+      priority:   Priority.high,
+      icon:       '@mipmap/ic_launcher',
     ),
     iOS: DarwinNotificationDetails(),
   );
@@ -135,8 +159,9 @@ void _showLocalNotification(RemoteMessage message) {
     notificationDetails,
   );
 
-  FirebaseMessaging.onMessage.listen((_) {});
-  FirebaseMessaging.instance.onTokenRefresh.listen((_) {});
+  // FIX ─ Removed two leaked stream subscriptions that were here in the
+  //        original.  _setupFCM() already subscribes both streams once at
+  //        startup, so these extra listen() calls were pure leaks.
 }
 
 // ============================================================
@@ -144,14 +169,14 @@ void _showLocalNotification(RemoteMessage message) {
 // ============================================================
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    // Replace these with your actual Firebase project config
+    // Replace these with your actual Firebase project config.
     // Run: flutterfire configure
     return const FirebaseOptions(
-      apiKey: 'YOUR_FIREBASE_API_KEY',
-      appId: 'YOUR_FIREBASE_APP_ID',
+      apiKey:            'YOUR_FIREBASE_API_KEY',
+      appId:             'YOUR_FIREBASE_APP_ID',
       messagingSenderId: 'YOUR_SENDER_ID',
-      projectId: 'YOUR_PROJECT_ID',
-      storageBucket: 'YOUR_PROJECT_ID.appspot.com',
+      projectId:         'YOUR_PROJECT_ID',
+      storageBucket:     'YOUR_PROJECT_ID.appspot.com',
     );
   }
 }
@@ -164,15 +189,15 @@ class LendingApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(appRouterProvider);
+    final router    = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
-      title: 'Jireta Loans & Credit Corp.',
+      title:                    'Jireta Loans & Credit Corp.',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: themeMode,
+      theme:      AppTheme.lightTheme,
+      darkTheme:  AppTheme.darkTheme,
+      themeMode:  themeMode,
       routerConfig: router,
     );
   }

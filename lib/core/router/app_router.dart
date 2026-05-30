@@ -1,5 +1,30 @@
 // lib/core/router/app_router.dart
 // Jireta Loans & Credit Corp. 1996
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX SUMMARY:
+//
+// BUG 1 (Missing mobile-route guard for web-only roles):
+//   The original guard only blocked riders/lenders from /web/ routes.
+//   It did NOT block head_manager/employee from /rider/ or /lender/ routes,
+//   so a web user navigating manually to a mobile path would see mobile UI.
+//   FIX: Added symmetric guard — if on /rider/ or /lender/ and role is a web
+//        role, redirect to /web/dashboard.
+//
+// BUG 2 (Missing /web/profile route — runtime GoRouter crash):
+//   WebTopBar calls context.go(AppConstants.routeWebProfile) but no route for
+//   '/web/profile' existed in the router. Clicking the profile icon caused a
+//   GoRouter 404 error page.
+//   FIX: Added GoRoute for '/web/profile' inside the Web ShellRoute.
+//        A lightweight ProfilePage placeholder is included; replace with your
+//        real implementation when ready.
+//
+// BUG 3 (Auth loading state not handled in redirect):
+//   When authState is still AsyncLoading, authState.value is null and the
+//   redirect returned null (no redirect). This briefly allowed access to
+//   protected routes before the user data loaded.
+//   FIX: When session exists but user is still loading, redirect to splash so
+//        the user waits for auth to resolve cleanly.
+// ═══════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -59,6 +84,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final isPublic = publicRoutes.any((r) => location.startsWith(r));
 
+      // ── Unauthenticated: send to correct login page ───────
       if (session == null && !isPublic) {
         return kIsWeb
             ? AppConstants.routeWebLogin
@@ -66,12 +92,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (session != null) {
+        // FIX 3 ─ If session exists but user is still loading, wait at splash.
+        if (authState.isLoading) {
+          return location == AppConstants.routeSplash
+              ? null // Already on splash, stay.
+              : AppConstants.routeSplash;
+        }
+
         final user = authState.value;
-        if (user == null) return null;
+        if (user == null) {
+          // Auth fetch returned null (DB profile missing) → re-login.
+          return kIsWeb
+              ? AppConstants.routeWebLogin
+              : AppConstants.routeMobileLogin;
+        }
 
         final role = user['role'] as String? ?? '';
 
-        // Redirect based on role if on auth page
+        // ── Redirect from auth pages after login ─────────
         if (isPublic && location != AppConstants.routeSplash) {
           switch (role) {
             case 'head_manager':
@@ -84,8 +122,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
         }
 
-        // Block web routes for mobile users
-        if (location.startsWith('/web/') && !['head_manager', 'employee'].contains(role)) {
+        // FIX 1a ─ Block web-only roles from mobile routes.
+        if ((location.startsWith('/rider/') ||
+                location.startsWith('/lender/')) &&
+            ['head_manager', 'employee'].contains(role)) {
+          return AppConstants.routeWebDashboard;
+        }
+
+        // FIX 1b ─ Block mobile-only roles from web routes (kept from original).
+        if (location.startsWith('/web/') &&
+            !['head_manager', 'employee'].contains(role)) {
           return AppConstants.routeMobileLogin;
         }
       }
@@ -150,7 +196,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeWebEmployees,
             name: 'web-employees',
-            pageBuilder: (_, state) => _fadePage(state, const EmployeesPage()),
+            pageBuilder: (_, state) =>
+                _fadePage(state, const EmployeesPage()),
           ),
           GoRoute(
             path: AppConstants.routeWebRiders,
@@ -160,7 +207,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeWebLenders,
             name: 'web-lenders',
-            pageBuilder: (_, state) => _fadePage(state, const LendersPage()),
+            pageBuilder: (_, state) =>
+                _fadePage(state, const LendersPage()),
           ),
           GoRoute(
             path: AppConstants.routeWebLoans,
@@ -170,7 +218,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeWebCollections,
             name: 'web-collections',
-            pageBuilder: (_, state) => _fadePage(state, const CollectionsPage()),
+            pageBuilder: (_, state) =>
+                _fadePage(state, const CollectionsPage()),
           ),
           GoRoute(
             path: AppConstants.routeWebCI,
@@ -180,17 +229,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeWebReports,
             name: 'web-reports',
-            pageBuilder: (_, state) => _fadePage(state, const ReportsPage()),
+            pageBuilder: (_, state) =>
+                _fadePage(state, const ReportsPage()),
           ),
           GoRoute(
             path: AppConstants.routeWebSettings,
             name: 'web-settings',
-            pageBuilder: (_, state) => _fadePage(state, const SettingsPage()),
+            pageBuilder: (_, state) =>
+                _fadePage(state, const SettingsPage()),
           ),
           GoRoute(
             path: AppConstants.routeWebAuditLogs,
             name: 'web-audit-logs',
-            pageBuilder: (_, state) => _fadePage(state, const AuditLogsPage()),
+            pageBuilder: (_, state) =>
+                _fadePage(state, const AuditLogsPage()),
+          ),
+          // FIX 2 ─ Added missing /web/profile route.
+          GoRoute(
+            path: AppConstants.routeWebProfile,
+            name: 'web-profile',
+            pageBuilder: (_, state) =>
+                _fadePage(state, const WebProfilePage()),
           ),
         ],
       ),
@@ -203,12 +262,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeRiderDashboard,
             name: 'rider-dashboard',
-            pageBuilder: (_, state) => _slidePage(state, const RiderDashboardPage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const RiderDashboardPage()),
           ),
           GoRoute(
             path: AppConstants.routeRiderAssignments,
             name: 'rider-assignments',
-            pageBuilder: (_, state) => _slidePage(state, const RiderAssignmentsPage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const RiderAssignmentsPage()),
           ),
           GoRoute(
             path: AppConstants.routeRiderCI,
@@ -227,12 +288,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeRiderProfile,
             name: 'rider-profile',
-            pageBuilder: (_, state) => _slidePage(state, const ProfilePage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const ProfilePage()),
           ),
           GoRoute(
             path: AppConstants.routeRiderNotifications,
             name: 'rider-notifications',
-            pageBuilder: (_, state) => _slidePage(state, const NotificationsPage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const NotificationsPage()),
           ),
         ],
       ),
@@ -245,7 +308,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeLenderDashboard,
             name: 'lender-dashboard',
-            pageBuilder: (_, state) => _slidePage(state, const LenderDashboardPage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const LenderDashboardPage()),
           ),
           GoRoute(
             path: AppConstants.routeLenderApply,
@@ -255,7 +319,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeLenderLoans,
             name: 'lender-loans',
-            pageBuilder: (_, state) => _slidePage(state, const LenderLoansListPage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const LenderLoansListPage()),
           ),
           GoRoute(
             path: AppConstants.routeLenderLoanDetail,
@@ -274,17 +339,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeLenderDocuments,
             name: 'lender-documents',
-            pageBuilder: (_, state) => _slidePage(state, const LenderDocumentsPage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const LenderDocumentsPage()),
           ),
           GoRoute(
             path: AppConstants.routeLenderProfile,
             name: 'lender-profile',
-            pageBuilder: (_, state) => _slidePage(state, const ProfilePage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const ProfilePage()),
           ),
           GoRoute(
             path: AppConstants.routeLenderNotifications,
             name: 'lender-notifications',
-            pageBuilder: (_, state) => _slidePage(state, const NotificationsPage()),
+            pageBuilder: (_, state) =>
+                _slidePage(state, const NotificationsPage()),
           ),
         ],
       ),
@@ -354,12 +422,20 @@ class LenderDocumentsPage extends StatelessWidget {
   Widget build(BuildContext context) => const _PlaceholderPage('Documents');
 }
 
+// FIX 2 ─ WebProfilePage added so /web/profile no longer crashes.
+// Replace with your real web profile implementation when ready.
+class WebProfilePage extends StatelessWidget {
+  const WebProfilePage({super.key});
+  @override
+  Widget build(BuildContext context) => const _PlaceholderPage('Profile');
+}
+
 class _PlaceholderPage extends StatelessWidget {
   final String title;
   const _PlaceholderPage(this.title);
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
-    body: Center(child: Text(title)),
-  );
+        appBar: AppBar(title: Text(title)),
+        body: Center(child: Text(title)),
+      );
 }
