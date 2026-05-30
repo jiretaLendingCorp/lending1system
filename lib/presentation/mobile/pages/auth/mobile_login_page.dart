@@ -246,7 +246,7 @@ class _MobileLoginPageState extends ConsumerState<MobileLoginPage>
                                     : Icons.visibility_off_outlined),
                               ),
                             ),
-                            validator: AppValidators.password,
+                            validator: AppValidators.passwordAdmin,
                           ),
 
                           // Forgot password

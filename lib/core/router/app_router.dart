@@ -107,6 +107,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const WebLoginPage(),
       ),
       GoRoute(
+        path: '/login',
+        name: 'login-alias',
+        redirect: (_, __) => AppConstants.routeMobileLogin,
+      ),
+      GoRoute(
         path: AppConstants.routeMobileLogin,
         name: 'mobile-login',
         builder: (_, __) => const MobileLoginPage(),

@@ -16,7 +16,9 @@ final authStateProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
       .from('users')
       .select('id, first_name, last_name, email, role_id, account_status, profile_picture_url, roles:role_id(name)')
       .eq('auth_id', session.user.id)
-      .single();
+      .maybeSingle();
+
+  if (response == null) return null;
 
   final role = (response['roles'] as Map?)?['name'] as String? ?? '';
   return {
@@ -71,7 +73,12 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
           .from('users')
           .select('id, account_status, roles:role_id(name)')
           .eq('auth_id', response.user!.id)
-          .single();
+          .maybeSingle();
+
+      if (user == null) {
+        await _supabase.auth.signOut();
+        throw Exception('No user profile found. Please contact your administrator.');
+      }
 
       final role   = (user['roles'] as Map?)?['name'] as String? ?? '';
       final status = user['account_status'] as String? ?? '';
@@ -147,7 +154,12 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
           .from('users')
           .select('id, account_status, roles:role_id(name)')
           .eq('auth_id', response.user!.id)
-          .single();
+          .maybeSingle();
+
+      if (user == null) {
+        await _supabase.auth.signOut();
+        throw Exception('No user profile found. Please contact your administrator.');
+      }
 
       final role   = (user['roles'] as Map?)?['name'] as String? ?? '';
       final status = user['account_status'] as String? ?? '';
