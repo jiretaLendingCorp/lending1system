@@ -130,9 +130,17 @@ Future<void> _setupFCM() async {
   });
 
   // Token refresh — subscribed ONCE here.
-  // If you need to store the new token in Supabase, do it here.
+  // Store the new token in Supabase users table when it rotates.
   FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-    // TODO: call authNotifier.updateFcmToken(newToken) if you have a ref.
+    final supabase = Supabase.instance.client;
+    final authId   = supabase.auth.currentUser?.id;
+    if (authId == null) return;
+    supabase
+        .from('users')
+        .update({'fcm_token': newToken})
+        .eq('auth_id', authId)
+        .then((_) {})
+        .catchError((_) {}); // silent — non-critical
   });
 }
 

@@ -1,9 +1,22 @@
 // lib/presentation/mobile/pages/auth/register_page.dart
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX: context.go('/login') → correct route constant
+//
+// BUG: After successful registration AND on the "Already have an account?" 
+//   link, the code called context.go('/login'). But '/login' is only an alias
+//   defined as a redirect in app_router.dart to routeMobileLogin.
+//   If that alias doesn't exist (or the router is fresh after registration),
+//   GoRouter throws a 404 error page instead of showing the login screen.
+//   FIX: Use AppConstants.routeMobileLogin ('/mobile/login') directly.
+// ═══════════════════════════════════════════════════════════════════════════
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+
+import '../../../../core/constants/app_constants.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -13,15 +26,15 @@ class RegisterPage extends ConsumerStatefulWidget {
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  final _confirmCtrl = TextEditingController();
-  bool _obscurePw = true;
-  bool _obscureConfirm = true;
-  bool _loading = false;
+  final _formKey        = GlobalKey<FormState>();
+  final _nameCtrl       = TextEditingController();
+  final _emailCtrl      = TextEditingController();
+  final _phoneCtrl      = TextEditingController();
+  final _passwordCtrl   = TextEditingController();
+  final _confirmCtrl    = TextEditingController();
+  bool  _obscurePw      = true;
+  bool  _obscureConfirm = true;
+  bool  _loading        = false;
 
   @override
   void dispose() {
@@ -38,27 +51,28 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     setState(() => _loading = true);
     try {
       await Supabase.instance.client.auth.signUp(
-        email: _emailCtrl.text.trim(),
+        email:    _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
         data: {
           'full_name': _nameCtrl.text.trim(),
-          'phone': _phoneCtrl.text.trim(),
-          'role': 'lender',
+          'phone':     _phoneCtrl.text.trim(),
+          'role':      'lender',
         },
       );
       if (mounted) {
         showDialog(
-          context: context,
+          context:          context,
           barrierDismissible: false,
           builder: (_) => AlertDialog(
-            title: const Text('Registration Successful'),
+            title:   const Text('Registration Successful'),
             content: const Text(
                 'Please check your email to verify your account before logging in.'),
             actions: [
               FilledButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  context.go('/login');
+                  // FIX: was context.go('/login') — use the real route constant
+                  context.go(AppConstants.routeMobileLogin);
                 },
                 child: const Text('Go to Login'),
               ),
@@ -92,7 +106,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              // Back button
+
               GestureDetector(
                 onTap: () => context.pop(),
                 child: const Row(children: [
@@ -103,17 +117,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
               const SizedBox(height: 32),
 
-              // Logo area
               Container(
-                width: 56,
-                height: 56,
+                width:  56, height: 56,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  color:        theme.colorScheme.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(Icons.account_balance,
                     color: theme.colorScheme.primary, size: 28),
-              ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.8, 0.8)),
+              ).animate().fadeIn(duration: 400.ms)
+               .scale(begin: const Offset(0.8, 0.8)),
 
               const SizedBox(height: 20),
 
@@ -134,16 +147,14 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
               const SizedBox(height: 32),
 
-              // Form
               Form(
                 key: _formKey,
                 child: Column(children: [
                   TextFormField(
-                    controller: _nameCtrl,
+                    controller:      _nameCtrl,
                     textInputAction: TextInputAction.next,
-                    decoration: _inputDec(
-                        label: 'Full Name',
-                        icon: Icons.person_outline),
+                    decoration:      _inputDec(
+                        label: 'Full Name', icon: Icons.person_outline),
                     validator: (v) =>
                         v!.trim().isEmpty ? 'Full name is required' : null,
                   ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
@@ -151,12 +162,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   const SizedBox(height: 16),
 
                   TextFormField(
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
+                    controller:      _emailCtrl,
+                    keyboardType:    TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
-                    decoration: _inputDec(
-                        label: 'Email Address',
-                        icon: Icons.email_outlined),
+                    decoration:      _inputDec(
+                        label: 'Email Address', icon: Icons.email_outlined),
                     validator: (v) =>
                         v!.contains('@') ? null : 'Enter a valid email',
                   ).animate().fadeIn(duration: 400.ms, delay: 250.ms),
@@ -164,23 +174,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   const SizedBox(height: 16),
 
                   TextFormField(
-                    controller: _phoneCtrl,
-                    keyboardType: TextInputType.phone,
+                    controller:      _phoneCtrl,
+                    keyboardType:    TextInputType.phone,
                     textInputAction: TextInputAction.next,
-                    decoration: _inputDec(
-                        label: 'Phone Number',
-                        icon: Icons.phone_outlined),
+                    decoration:      _inputDec(
+                        label: 'Phone Number', icon: Icons.phone_outlined),
                   ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
 
                   const SizedBox(height: 16),
 
                   TextFormField(
-                    controller: _passwordCtrl,
-                    obscureText: _obscurePw,
+                    controller:      _passwordCtrl,
+                    obscureText:     _obscurePw,
                     textInputAction: TextInputAction.next,
                     decoration: _inputDec(
-                      label: 'Password',
-                      icon: Icons.lock_outline,
+                      label: 'Password', icon: Icons.lock_outline,
                     ).copyWith(
                       suffixIcon: IconButton(
                         icon: Icon(_obscurePw
@@ -198,20 +206,19 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   const SizedBox(height: 16),
 
                   TextFormField(
-                    controller: _confirmCtrl,
-                    obscureText: _obscureConfirm,
+                    controller:      _confirmCtrl,
+                    obscureText:     _obscureConfirm,
                     textInputAction: TextInputAction.done,
                     onFieldSubmitted: (_) => _register(),
                     decoration: _inputDec(
-                      label: 'Confirm Password',
-                      icon: Icons.lock_outline,
+                      label: 'Confirm Password', icon: Icons.lock_outline,
                     ).copyWith(
                       suffixIcon: IconButton(
                         icon: Icon(_obscureConfirm
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined),
-                        onPressed: () => setState(
-                            () => _obscureConfirm = !_obscureConfirm),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
                     ),
                     validator: (v) => v != _passwordCtrl.text
@@ -222,35 +229,37 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   const SizedBox(height: 28),
 
                   SizedBox(
-                    width: double.infinity,
-                    height: 50,
+                    width: double.infinity, height: 50,
                     child: FilledButton(
                       onPressed: _loading ? null : _register,
                       child: _loading
                           ? const SizedBox(
-                              width: 20,
-                              height: 20,
+                              width: 20, height: 20,
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white))
                           : const Text('Create Account',
                               style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize:   16,
                                   fontWeight: FontWeight.w600)),
                     ),
                   ).animate().fadeIn(duration: 400.ms, delay: 450.ms),
 
                   const SizedBox(height: 20),
 
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Text('Already have an account? '),
-                    GestureDetector(
-                      onTap: () => context.go('/login'),
-                      child: Text('Sign In',
-                          style: TextStyle(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600)),
-                    ),
-                  ]).animate().fadeIn(duration: 400.ms, delay: 500.ms),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Already have an account? '),
+                      GestureDetector(
+                        // FIX: was context.go('/login') — use the real route constant
+                        onTap: () => context.go(AppConstants.routeMobileLogin),
+                        child: Text('Sign In',
+                            style: TextStyle(
+                                color:      theme.colorScheme.primary,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ).animate().fadeIn(duration: 400.ms, delay: 500.ms),
 
                   const SizedBox(height: 24),
                 ]),
@@ -262,12 +271,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     );
   }
 
-  InputDecoration _inputDec(
-          {required String label, required IconData icon}) =>
+  InputDecoration _inputDec({required String label, required IconData icon}) =>
       InputDecoration(
-        labelText: label,
+        labelText:  label,
         prefixIcon: Icon(icon),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        border:     OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12)),
         filled: true,
       );
 }
