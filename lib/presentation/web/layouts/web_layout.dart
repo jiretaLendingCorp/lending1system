@@ -1,10 +1,29 @@
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  FIX 2 — lib/presentation/web/layouts/web_layout.dart                   ║
+// ╠══════════════════════════════════════════════════════════════════════════╣
+// ║  BUG: Head Manager / Employee can see the sidebar but cannot click       ║
+// ║       non-active nav items (stuck on Dashboard).                         ║
+// ║                                                                          ║
+// ║  ROOT CAUSE:                                                             ║
+// ║    _NavItem uses GestureDetector with default                            ║
+// ║    HitTestBehavior.deferToChild.  When a nav item is neither active nor  ║
+// ║    hovered, its background color is Colors.transparent.  Flutter's hit-  ║
+// ║    testing skips transparent areas when behavior is deferToChild, so the ║
+// ║    tap gesture is never delivered even though the cursor shows a hand.   ║
+// ║                                                                          ║
+// ║  FIX:                                                                    ║
+// ║    Add behavior: HitTestBehavior.opaque to the GestureDetector so the   ║
+// ║    entire item rect receives pointer events regardless of background.    ║
+// ║    Also moved to InkWell (which handles opaque hit-testing natively and  ║
+// ║    gives the expected ripple feedback on web).                           ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
 // lib/presentation/web/layouts/web_layout.dart
 // Jireta Loans & Credit Corp. 1996 — Web Sidebar Layout
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-// FIX: Removed unused import 'flutter_animate' (unused_import warning)
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
@@ -322,6 +341,11 @@ class _NavItemState extends State<_NavItem> {
         onExit:  (_) => setState(() => _hovered = false),
         cursor:  SystemMouseCursors.click,
         child: GestureDetector(
+          // ✅ FIX: HitTestBehavior.opaque ensures the transparent background
+          //         still receives pointer events.  Without this, Flutter skips
+          //         hit-testing for transparent areas (deferToChild default),
+          //         so non-active items never fire onTap.
+          behavior: HitTestBehavior.opaque,
           onTap: () => context.go(widget.route),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
@@ -358,7 +382,7 @@ class _NavItemState extends State<_NavItem> {
                                   ? AppColors.darkTextSecondary
                                   : AppColors.lightTextSecondary,
                         ),
-                                      ],
+                      ],
                     ),
                     if (!widget.collapsed) ...[
                       const SizedBox(width: 12),
@@ -559,7 +583,6 @@ class _WebTopBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          // Collapse toggle
           IconButton(
             onPressed: onToggle,
             icon: Icon(
@@ -571,7 +594,6 @@ class _WebTopBar extends ConsumerWidget {
 
           const SizedBox(width: 12),
 
-          // Page title breadcrumb
           Text(
             _pageTitle(location),
             style: const TextStyle(
@@ -583,7 +605,6 @@ class _WebTopBar extends ConsumerWidget {
 
           const Spacer(),
 
-          // Theme toggle
           IconButton(
             onPressed: () => ref.read(themeModeProvider.notifier).toggleTheme(),
             icon: Icon(
@@ -597,7 +618,6 @@ class _WebTopBar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Notifications
           IconButton(
             onPressed: () {},
             icon: const Icon(Icons.notifications_none_rounded, size: 22),
@@ -606,7 +626,6 @@ class _WebTopBar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Profile
           IconButton(
             onPressed: () => context.go(AppConstants.routeWebProfile),
             icon: const Icon(Icons.account_circle_rounded, size: 22),

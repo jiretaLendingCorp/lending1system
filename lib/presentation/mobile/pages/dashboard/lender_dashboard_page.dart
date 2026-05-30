@@ -1,3 +1,23 @@
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  FIX 1 — lib/presentation/mobile/pages/dashboard/lender_dashboard_page.dart
+// ╠══════════════════════════════════════════════════════════════════════════╣
+// ║  BUG (shown in screenshot — red screen):                                ║
+// ║    PostgrestException: Cannot coerce the result to a single JSON object, ║
+// ║    code: PGRST116, details: The result contains 0 rows                  ║
+// ║                                                                          ║
+// ║  ROOT CAUSE:                                                             ║
+// ║    .single() on the lenders table throws PGRST116 whenever the logged-in ║
+// ║    user has no lender record yet (e.g. profile not fully created, or     ║
+// ║    account still pending verification).  The uncaught exception bubbles  ║
+// ║    up through the FutureProvider and Flutter renders the full-screen red ║
+// ║    error overlay instead of the dashboard.                               ║
+// ║                                                                          ║
+// ║  FIX:                                                                    ║
+// ║    .single() → .maybeSingle()                                            ║
+// ║    Guard the subsequent query behind a null-check; return an empty       ║
+// ║    loans list so the dashboard still renders without crashing.           ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
 // lib/presentation/mobile/pages/dashboard/lender_dashboard_page.dart
 // Jireta Loans & Credit Corp. 1996 — Lender Mobile Dashboard
 
@@ -13,15 +33,21 @@ import '../../../../providers/auth_provider.dart';
 
 // ── Providers ─────────────────────────────────────────────────
 
-final lenderActiveLoansProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final lenderActiveLoansProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) return [];
 
+  // ✅ FIX: was .single() — throws PGRST116 when 0 rows exist.
+  //         .maybeSingle() returns null instead of crashing.
   final lender = await Supabase.instance.client
       .from('lenders')
       .select('id')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
+
+  // ✅ FIX: Guard — if no lender record, return empty list instead of crashing.
+  if (lender == null) return [];
 
   return await Supabase.instance.client
       .from('loans')
@@ -121,7 +147,7 @@ class LenderDashboardPage extends ConsumerWidget {
 
                 loans.when(
                   loading: () => _LoanCardSkeleton(),
-                  error:   (_, __) => const _ErrorWidget(),
+                  error:   (e, _) => _ErrorWidget(message: e.toString()),
                   data:    (loanList) => loanList.isEmpty
                       ? _EmptyLoansWidget()
                       : Column(
@@ -397,112 +423,118 @@ class _LoanCard extends StatelessWidget {
 
     final progress = totalPay > 0 ? (1 - (outstanding / totalPay)).clamp(0.0, 1.0) : 0.0;
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color:        isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color:      Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-            blurRadius: 12,
-            offset:     const Offset(0, 4),
-          ),
-        ],
+    return GestureDetector(
+      onTap: () => context.go(
+        AppConstants.routeLenderLoanDetail.replaceAll(':id', loan['id'] as String),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(code, style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary500)),
-                  const SizedBox(height: 2),
-                  Text(
-                    '₱${_fmt(principal)}',
-                    style: const TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color:        statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  _statusLabel(status),
-                  style: TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
-                ),
-              ),
-            ],
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color:        isDark ? AppColors.darkCard : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
           ),
-
-          const SizedBox(height: 16),
-
-          // Progress bar
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${(progress * 100).toStringAsFixed(0)}% paid',
-                    style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                  Text(
-                    'Balance: ₱${_fmt(outstanding)}',
-                    style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value:            progress,
-                  backgroundColor:  isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  valueColor:       AlwaysStoppedAnimation<Color>(
-                    progress >= 1.0 ? AppColors.success : AppColors.primary500,
-                  ),
-                  minHeight: 7,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          Row(
-            children: [
-              _InfoChip(
-                icon:  Icons.repeat_rounded,
-                label: '${_freqLabel(frequency)} ₱${_fmt(payAmt)}',
-              ),
-              const SizedBox(width: 8),
-              if (status == 'active' || status == 'overdue')
-                GestureDetector(
-                  onTap: () => context.go('${AppConstants.routeLenderPay.replaceAll(':loanId', '')}${loan['id']}'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      gradient:     AppColors.primaryGradient,
-                      borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color:      Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+              blurRadius: 12,
+              offset:     const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(code, style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary500)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '₱${_fmt(principal)}',
+                      style: const TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                     ),
-                    child: const Text('Pay Now', style: TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color:        statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    _statusLabel(status),
+                    style: TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
                   ),
                 ),
-            ],
-          ),
-        ],
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${(progress * 100).toStringAsFixed(0)}% paid',
+                      style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                    Text(
+                      'Balance: ₱${_fmt(outstanding)}',
+                      style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value:            progress,
+                    backgroundColor:  isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    valueColor:       AlwaysStoppedAnimation<Color>(
+                      progress >= 1.0 ? AppColors.success : AppColors.primary500,
+                    ),
+                    minHeight: 7,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            Row(
+              children: [
+                _InfoChip(
+                  icon:  Icons.repeat_rounded,
+                  label: '${_freqLabel(frequency)} ₱${_fmt(payAmt)}',
+                ),
+                const SizedBox(width: 8),
+                if (status == 'active' || status == 'overdue')
+                  GestureDetector(
+                    onTap: () => context.go(
+                      AppConstants.routeLenderPay.replaceAll(':loanId', loan['id'] as String),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient:     AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text('Pay Now', style: TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -671,19 +703,27 @@ class _EmptyLoansWidget extends StatelessWidget {
   }
 }
 
+// ✅ FIX: _ErrorWidget now shows the actual error message for easier debugging
 class _ErrorWidget extends StatelessWidget {
-  const _ErrorWidget();
+  final String message;
+  const _ErrorWidget({this.message = 'Failed to load loans'});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(24),
-      child: const Center(
+      child: Center(
         child: Column(
           children: [
-            Icon(Icons.error_outline, color: AppColors.error, size: 40),
-            SizedBox(height: 8),
-            Text('Failed to load loans', style: TextStyle(fontFamily: 'Poppins')),
+            const Icon(Icons.error_outline, color: AppColors.error, size: 40),
+            const SizedBox(height: 8),
+            const Text('Failed to load loans', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
