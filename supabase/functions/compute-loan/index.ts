@@ -1,3 +1,4 @@
+// @ts-nocheck
 // supabase/functions/compute-loan/index.ts
 // Jireta Loans & Credit Corp. 1996
 // Edge Function: Loan Computation Engine

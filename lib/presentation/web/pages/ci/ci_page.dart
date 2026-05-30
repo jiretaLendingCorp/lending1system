@@ -101,7 +101,7 @@ class CiPage extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
               DropdownButtonFormField<String>(
-                value: statusFilter,
+                initialValue: statusFilter,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10)),
@@ -277,7 +277,7 @@ class CiPage extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: selected,
+                  initialValue: selected,
                   decoration: const InputDecoration(labelText: 'Status'),
                   items: const [
                     DropdownMenuItem(

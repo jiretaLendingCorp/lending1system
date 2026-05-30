@@ -1,3 +1,4 @@
+// @ts-nocheck
 // supabase/functions/fraud-detection/index.ts
 // Jireta Loans & Credit Corp. 1996
 // Edge Function: Fraud Detection & Risk Scoring

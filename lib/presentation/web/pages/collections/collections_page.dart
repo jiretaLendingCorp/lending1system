@@ -103,7 +103,7 @@ class CollectionsPage extends ConsumerWidget {
             Row(children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: statusFilter,
+                  initialValue: statusFilter,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),

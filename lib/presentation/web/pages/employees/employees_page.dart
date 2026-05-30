@@ -91,7 +91,7 @@ class EmployeesPage extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 DropdownButtonFormField<String>(
-                  value: statusFilter,
+                  initialValue: statusFilter,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),

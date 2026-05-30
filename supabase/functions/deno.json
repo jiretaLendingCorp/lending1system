@@ -1,0 +1,19 @@
+{
+  "importMap": "./import_map.json",
+  "compilerOptions": {
+    "lib": [
+      "deno.window"
+    ],
+    "strict": true
+  },
+  "lint": {
+    "include": [
+      "."
+    ]
+  },
+  "fmt": {
+    "include": [
+      "."
+    ]
+  }
+}

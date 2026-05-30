@@ -80,7 +80,7 @@ class AuditLogsPage extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
               DropdownButtonFormField<String>(
-                value: actionFilter,
+                initialValue: actionFilter,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10)),

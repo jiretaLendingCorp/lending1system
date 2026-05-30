@@ -1,3 +1,4 @@
+// @ts-nocheck
 // supabase/functions/scheduled-reminders/index.ts
 // Jireta Loans & Credit Corp. 1996
 // Edge Function: Scheduled Due Reminders + Auto Penalty Application

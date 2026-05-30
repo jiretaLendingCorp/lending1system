@@ -101,7 +101,7 @@ class AdminDashboardPage extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color:        AppColors.successLight,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -308,20 +308,20 @@ class _StatCardState extends State<_StatCard> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _hovered
-                ? widget.def.color.withOpacity(0.3)
+                ? widget.def.color.withValues(alpha: 0.3)
                 : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
           ),
           boxShadow: _hovered
               ? [
                   BoxShadow(
-                    color:      widget.def.color.withOpacity(0.12),
+                    color:      widget.def.color.withValues(alpha: 0.12),
                     blurRadius: 20,
                     offset:     const Offset(0, 6),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color:      Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+                    color:      Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
                     blurRadius: 8,
                     offset:     const Offset(0, 2),
                   ),
@@ -338,7 +338,7 @@ class _StatCardState extends State<_StatCard> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color:        isDark
-                        ? widget.def.color.withOpacity(0.15)
+                        ? widget.def.color.withValues(alpha: 0.15)
                         : widget.def.bg,
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -348,7 +348,7 @@ class _StatCardState extends State<_StatCard> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color:        isDark
-                        ? widget.def.color.withOpacity(0.15)
+                        ? widget.def.color.withValues(alpha: 0.15)
                         : widget.def.bg,
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -511,7 +511,7 @@ class _RecentActivityPanel extends ConsumerWidget {
                         Container(
                           width: 32, height: 32,
                           decoration: BoxDecoration(
-                            color:        _actionColor(action).withOpacity(0.15),
+                            color:        _actionColor(action).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(_actionIcon(action), color: _actionColor(action), size: 16),
@@ -602,7 +602,7 @@ class _StatsGridSkeleton extends StatelessWidget {
           border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
         ),
       ).animate(onPlay: (c) => c.repeat())
-       .shimmer(duration: 1200.ms, color: AppColors.primary100.withOpacity(0.4)),
+       .shimmer(duration: 1200.ms, color: AppColors.primary100.withValues(alpha: 0.4)),
     );
   }
 }

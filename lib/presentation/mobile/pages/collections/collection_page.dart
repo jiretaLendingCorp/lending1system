@@ -131,7 +131,6 @@ class _RecordTabState extends ConsumerState<_RecordTab> {
       _notesCtrl.clear();
       setState(() {
         _selectedLoanId = null;
-        _selectedLoanLabel = null;
         _selectedLoanBalance = 0;
         _date = DateTime.now();
         _status = 'collected';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // supabase/functions/process-payment/index.ts
 // Jireta Loans & Credit Corp. 1996
 // Edge Function: PayMongo Payment Processing

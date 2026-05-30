@@ -227,8 +227,8 @@ class _SidebarLogo extends StatelessWidget {
           ),
           if (!collapsed) ...[
             const SizedBox(width: 12),
-            Expanded(
-              child: const Column(
+            const Expanded(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -275,7 +275,6 @@ class _NavItem extends StatefulWidget {
   final bool     collapsed;
   final String   current;
   final bool     hidden;
-  final int?     badge;
 
   const _NavItem({
     required this.icon,
@@ -284,7 +283,6 @@ class _NavItem extends StatefulWidget {
     required this.collapsed,
     required this.current,
     this.hidden = false,
-    this.badge,
   });
 
   @override
@@ -360,26 +358,7 @@ class _NavItemState extends State<_NavItem> {
                                   ? AppColors.darkTextSecondary
                                   : AppColors.lightTextSecondary,
                         ),
-                        if (widget.badge != null && widget.badge! > 0)
-                          Positioned(
-                            top: -4, right: -6,
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: const BoxDecoration(
-                                color: AppColors.error,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Text(
-                                widget.badge! > 99 ? '99+' : '${widget.badge}',
-                                style: const TextStyle(
-                                  color:      Colors.white,
-                                  fontSize:   9,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
+                                      ],
                     ),
                     if (!widget.collapsed) ...[
                       const SizedBox(width: 12),

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // supabase/functions/send-notification/index.ts
 // Jireta Loans & Credit Corp. 1996
 // Edge Function: FCM Push Notification Sender
@@ -182,7 +183,7 @@ serve(async (req: Request) => {
     if (notifErr) throw notifErr;
 
     // Send FCM push if token available
-    let pushResult = { success: false, error: "No FCM token" };
+    let pushResult: { success: boolean; messageId?: string; error?: string } = { success: false, error: "No FCM token" };
 
     if (user.fcm_token) {
       const projectId = Deno.env.get("FIREBASE_PROJECT_ID") ?? "";

@@ -186,7 +186,7 @@ class _AssignCiModalState extends ConsumerState<AssignCiModal> {
                       style: TextStyle(color: Colors.grey));
                 }
                 return DropdownButtonFormField<String>(
-                  value: _selectedRiderId,
+                  initialValue: _selectedRiderId,
                   decoration: InputDecoration(
                     hintText: 'Choose a rider...',
                     border: OutlineInputBorder(

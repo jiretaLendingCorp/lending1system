@@ -69,7 +69,7 @@ class _WebLoginPageState extends ConsumerState<WebLoginPage> {
                 begin: Alignment.topLeft,
                 end:   Alignment.bottomRight,
                 colors: isDark
-                    ? [AppColors.darkBackground, AppColors.primary900.withOpacity(0.4)]
+                    ? [AppColors.darkBackground, AppColors.primary900.withValues(alpha: 0.4)]
                     : [AppColors.primary50, AppColors.primary100],
               ),
             ),
@@ -82,7 +82,7 @@ class _WebLoginPageState extends ConsumerState<WebLoginPage> {
               width: 400, height: 400,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.primary500.withOpacity(isDark ? 0.08 : 0.12),
+                color: AppColors.primary500.withValues(alpha: isDark ? 0.08 : 0.12),
               ),
             ),
           ),
@@ -92,7 +92,7 @@ class _WebLoginPageState extends ConsumerState<WebLoginPage> {
               width: 300, height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.accent.withOpacity(isDark ? 0.06 : 0.10),
+                color: AppColors.accent.withValues(alpha: isDark ? 0.06 : 0.10),
               ),
             ),
           ),
@@ -253,8 +253,8 @@ class _LoginCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color:      isDark
-                ? Colors.black.withOpacity(0.3)
-                : AppColors.primary500.withOpacity(0.08),
+                ? Colors.black.withValues(alpha: 0.3)
+                : AppColors.primary500.withValues(alpha: 0.08),
             blurRadius: 40,
             offset:     const Offset(0, 16),
           ),
@@ -331,7 +331,7 @@ class _LoginCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color:        AppColors.errorLight,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [

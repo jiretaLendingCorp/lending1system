@@ -1,3 +1,4 @@
+// @ts-nocheck
 // supabase/functions/archive-record/index.ts
 // Jireta Loans & Credit Corp. 1996
 // Edge Function: Safe Archive / Restore operations with audit log

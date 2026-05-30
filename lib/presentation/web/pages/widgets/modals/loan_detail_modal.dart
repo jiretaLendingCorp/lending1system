@@ -31,9 +31,9 @@ class LoanDetailModal extends StatelessWidget {
             // Header
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient:     AppColors.primaryGradient,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Row(
                 children: [
