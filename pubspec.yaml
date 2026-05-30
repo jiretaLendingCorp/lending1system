@@ -15,7 +15,6 @@ dependencies:
 
   # State Management
   flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
 
   # Navigation
   go_router: ^14.2.0
@@ -41,11 +40,9 @@ dependencies:
 
   # Charts & Analytics
   fl_chart: ^0.68.0
-  syncfusion_flutter_charts: ^26.2.12
 
   # Data Tables
   data_table_2: ^2.5.12
-  # pluto_grid removed — conflicts with intl ^0.20.2; use data_table_2 instead
 
   # Maps & GPS
   google_maps_flutter: ^2.7.0
@@ -66,18 +63,14 @@ dependencies:
   # Storage & Local Data
   shared_preferences: ^2.3.2
   flutter_secure_storage: ^9.2.2
-  hive_flutter: ^1.1.0
 
   # Forms & Validation
-  reactive_forms: ^17.0.1
   form_validator: ^2.1.1
 
   # Utils
   intl: ^0.20.2
   uuid: ^4.4.2
   equatable: ^2.0.5
-  freezed_annotation: ^2.4.4
-  json_annotation: ^4.9.0
   connectivity_plus: ^6.0.4
   package_info_plus: ^8.0.2
   device_info_plus: ^10.1.2
@@ -91,9 +84,6 @@ dependencies:
   # Excel Export
   excel: ^4.0.2
 
-  # Signature
-  syncfusion_flutter_signaturepad: ^26.2.12
-
   # Animations
   animations: ^2.0.11
   page_transition: ^2.1.0
@@ -102,11 +92,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  build_runner: ^2.4.11
-  riverpod_generator: ^2.4.3
-  freezed: ^2.5.7
-  json_serializable: ^6.8.0
-  hive_generator: ^2.0.1
 
 flutter:
   uses-material-design: true
