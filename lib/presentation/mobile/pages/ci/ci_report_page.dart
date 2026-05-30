@@ -22,7 +22,8 @@ final myCiProvider =
 final ciMobileFilterProvider = StateProvider<String>((ref) => 'all');
 
 class CiReportPage extends ConsumerWidget {
-  const CiReportPage({super.key});
+  final String assignmentId;
+  const CiReportPage({super.key, required this.assignmentId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -83,7 +83,7 @@ class AppTheme {
         foregroundColor: AppColors.lightText,
         elevation:       0,
         scrolledUnderElevation: 1,
-        shadowColor:     AppColors.primary500.withOpacity(0.1),
+        shadowColor:     AppColors.primary500.withValues(alpha: 0.1),
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor:           Colors.transparent,
           statusBarBrightness:      Brightness.light,

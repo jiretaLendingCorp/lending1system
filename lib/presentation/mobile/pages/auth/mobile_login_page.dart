@@ -93,7 +93,7 @@ class _MobileLoginPageState extends ConsumerState<MobileLoginPage>
                     _bgAnim.value,
                   )!,
                   colors: isDark
-                      ? [AppColors.darkBackground, AppColors.primary900.withOpacity(0.6), AppColors.darkBackground]
+                      ? [AppColors.darkBackground, AppColors.primary900.withValues(alpha: 0.6), AppColors.darkBackground]
                       : [AppColors.primary600, AppColors.primary500, AppColors.accent],
                 ),
               ),
@@ -129,12 +129,12 @@ class _MobileLoginPageState extends ConsumerState<MobileLoginPage>
                       Container(
                         width: 80, height: 80,
                         decoration: BoxDecoration(
-                          color:        Colors.white.withOpacity(0.15),
+                          color:        Colors.white.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
                           boxShadow: [
                             BoxShadow(
-                              color:      Colors.black.withOpacity(0.1),
+                              color:      Colors.black.withValues(alpha: 0.1),
                               blurRadius: 20,
                               offset:     const Offset(0, 8),
                             ),
@@ -183,7 +183,7 @@ class _MobileLoginPageState extends ConsumerState<MobileLoginPage>
                       borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color:      Colors.black.withOpacity(isDark ? 0.4 : 0.15),
+                          color:      Colors.black.withValues(alpha: isDark ? 0.4 : 0.15),
                           blurRadius: 40,
                           offset:     const Offset(0, 16),
                         ),
@@ -349,8 +349,8 @@ class _MobileLoginPageState extends ConsumerState<MobileLoginPage>
 
   List<Widget> _buildBubbles(Size size, bool isDark) {
     final color = isDark
-        ? AppColors.primary500.withOpacity(0.08)
-        : Colors.white.withOpacity(0.1);
+        ? AppColors.primary500.withValues(alpha: 0.08)
+        : Colors.white.withValues(alpha: 0.1);
 
     return [
       Positioned(
@@ -383,7 +383,7 @@ class _MobileLoginPageState extends ConsumerState<MobileLoginPage>
         top: size.height * 0.3, right: -30,
         child: Container(
           width: 80, height: 80,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.5)),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.5)),
         ),
       ),
     ];

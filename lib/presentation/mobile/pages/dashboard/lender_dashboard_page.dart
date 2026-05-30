@@ -207,9 +207,9 @@ class _HeroHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
-              color:        Colors.white.withOpacity(0.15),
+              color:        Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -237,7 +237,7 @@ class _HeroHeader extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color:        Colors.white.withOpacity(0.2),
+                    color:        Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 22),
@@ -342,7 +342,7 @@ class _ActionButtonState extends State<_ActionButton>
             ),
             boxShadow: [
               BoxShadow(
-                color:      widget.def.color.withOpacity(0.1),
+                color:      widget.def.color.withValues(alpha: 0.1),
                 blurRadius: 12,
                 offset:     const Offset(0, 4),
               ),
@@ -353,7 +353,7 @@ class _ActionButtonState extends State<_ActionButton>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color:        widget.def.color.withOpacity(isDark ? 0.2 : 0.1),
+                  color:        widget.def.color.withValues(alpha: isDark ? 0.2 : 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(widget.def.icon, color: widget.def.color, size: 22),
@@ -408,7 +408,7 @@ class _LoanCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color:      Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+            color:      Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
             blurRadius: 12,
             offset:     const Offset(0, 4),
           ),
@@ -434,9 +434,9 @@ class _LoanCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color:        statusColor.withOpacity(0.12),
+                  color:        statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withOpacity(0.3)),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   _statusLabel(status),
@@ -577,7 +577,7 @@ class _ApplyLoanBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color:      AppColors.primary500.withOpacity(0.3),
+              color:      AppColors.primary500.withValues(alpha: 0.3),
               blurRadius: 20,
               offset:     const Offset(0, 8),
             ),
@@ -593,7 +593,7 @@ class _ApplyLoanBanner extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Apply for a loan from ₱5,000 up to ₱500,000',
-                    style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: Colors.white.withOpacity(0.8)),
+                    style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: Colors.white.withValues(alpha: 0.8)),
                   ),
                 ],
               ),
@@ -601,7 +601,7 @@ class _ApplyLoanBanner extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color:        Colors.white.withOpacity(0.2),
+                color:        Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 24),
@@ -649,7 +649,7 @@ class _LoanCardSkeleton extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
         ),
       ).animate(onPlay: (c) => c.repeat())
-       .shimmer(duration: 1200.ms, color: AppColors.primary100.withOpacity(0.3))),
+       .shimmer(duration: 1200.ms, color: AppColors.primary100.withValues(alpha: 0.3))),
     );
   }
 }

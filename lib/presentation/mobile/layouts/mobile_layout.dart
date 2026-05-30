@@ -115,16 +115,16 @@ class _FloatingBottomNav extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color:      isDark
-                    ? Colors.black.withOpacity(0.4)
-                    : AppColors.primary500.withOpacity(0.12),
+                    ? Colors.black.withValues(alpha: 0.4)
+                    : AppColors.primary500.withValues(alpha: 0.12),
                 blurRadius: 24,
                 offset:     const Offset(0, 8),
                 spreadRadius: 2,
               ),
               BoxShadow(
                 color:      isDark
-                    ? Colors.black.withOpacity(0.2)
-                    : Colors.black.withOpacity(0.04),
+                    ? Colors.black.withValues(alpha: 0.2)
+                    : Colors.black.withValues(alpha: 0.04),
                 blurRadius: 8,
                 offset:     const Offset(0, 2),
               ),

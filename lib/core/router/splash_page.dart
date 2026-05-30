@@ -73,7 +73,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color:      Colors.black.withOpacity(0.2),
+                    color:      Colors.black.withValues(alpha: 0.2),
                     blurRadius: 24,
                     offset:     const Offset(0, 8),
                   ),
@@ -138,7 +138,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
             SizedBox(
               width: 32, height: 32,
               child: CircularProgressIndicator(
-                color:       Colors.white.withOpacity(0.7),
+                color:       Colors.white.withValues(alpha: 0.7),
                 strokeWidth: 2.5,
               ),
             )

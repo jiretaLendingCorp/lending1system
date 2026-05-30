@@ -34,7 +34,8 @@ final myActiveLoansProvider =
 });
 
 class CollectionPage extends ConsumerStatefulWidget {
-  const CollectionPage({super.key});
+  final String collectionId;
+  const CollectionPage({super.key, required this.collectionId});
 
   @override
   ConsumerState<CollectionPage> createState() => _CollectionPageState();
