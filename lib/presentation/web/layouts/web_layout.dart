@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+// FIX: Removed unused import 'flutter_animate' (unused_import warning)
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
@@ -217,7 +217,7 @@ class _SidebarLogo extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color:      AppColors.primary500.withOpacity(0.3),
+                  color:      AppColors.primary500.withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset:     const Offset(0, 2),
                 ),
@@ -284,6 +284,7 @@ class _NavItem extends StatefulWidget {
     required this.collapsed,
     required this.current,
     this.hidden = false,
+    this.badge,          // FIX: was missing — caused final_not_initialized_constructor
   });
 
   @override
@@ -302,7 +303,7 @@ class _NavItemState extends State<_NavItem> {
 
     final activeColor  = AppColors.primary500;
     final activeBg     = AppColors.primary50;
-    final activeBgDark = AppColors.primary900.withOpacity(0.4);
+    final activeBgDark = AppColors.primary900.withValues(alpha: 0.4);
     final hoverBg      = isDark
         ? AppColors.darkSurfaceVariant
         : AppColors.lightSurfaceVariant;
@@ -332,7 +333,7 @@ class _NavItemState extends State<_NavItem> {
               borderRadius: BorderRadius.circular(10),
               border: isActive
                   ? Border.all(
-                      color: activeColor.withOpacity(0.2), width: 1)
+                      color: activeColor.withValues(alpha: 0.2), width: 1)
                   : null,
             ),
             child: Tooltip(
