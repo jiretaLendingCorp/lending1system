@@ -34,6 +34,7 @@ import '../../presentation/mobile/pages/payments/payment_page.dart';
 import '../../presentation/mobile/pages/ci/ci_report_page.dart';
 import '../../presentation/mobile/pages/collections/collection_page.dart';
 import '../../presentation/mobile/pages/profile/profile_page.dart';
+import '../../presentation/mobile/pages/profile/code_history_page.dart';
 import '../../presentation/mobile/pages/notifications/notifications_page.dart';
 import '../../presentation/mobile/pages/assignments/rider_assignments_page.dart';
 import '../../presentation/mobile/pages/documents/lender_documents_page.dart';
@@ -312,6 +313,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path:        AppConstants.routeLenderNotifications,
             name:        'lender-notifications',
             pageBuilder: (_, state) => _slidePage(state, const NotificationsPage()),
+          ),
+          GoRoute(
+            path:    AppConstants.routeLenderCodeHistory,
+            name:    'lender-code-history',
+            builder: (_, __) => const CodeHistoryPage(),
           ),
         ],
       ),
