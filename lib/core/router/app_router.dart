@@ -1,61 +1,48 @@
-// lib/core/router/app_router.dart
-// ═══════════════════════════════════════════════════════════════════════════
-// FIXES IN THIS FILE:
-//
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  BUG (ROOT CAUSE OF "STUCK ON DASHBOARD" — MOBILE & WEB)               ║
+// ║  FIX 6 — lib/core/router/app_router.dart                               ║
+// ╠══════════════════════════════════════════════════════════════════════════╣
+// ║  PRIMARY BUG — "Stuck on dashboard / can't navigate anywhere"           ║
+// ║                                                                          ║
+// ║  ROOT CAUSE:                                                             ║
+// ║    The original code did:                                                ║
+// ║                                                                          ║
+// ║      final appRouterProvider = Provider<GoRouter>((ref) {               ║
+// ║        final authState = ref.watch(authStateProvider);   // ← watch!    ║
+// ║        return GoRouter(redirect: (ctx, state) { /* uses authState */ }); ║
+// ║      });                                                                 ║
+// ║                                                                          ║
+// ║    Riverpod's Provider re-runs its builder whenever a watched            ║
+// ║    dependency changes. So every time authStateProvider emits a new      ║
+// ║    value (loading → data, or after ref.invalidate(authStateProvider))   ║
+// ║    a BRAND NEW GoRouter instance is created and handed to               ║
+// ║    MaterialApp.router.                                                   ║
+// ║                                                                          ║
+// ║    MaterialApp.router replaces the entire router when it receives a new ║
+// ║    GoRouter object, which resets the navigation stack back to            ║
+// ║    GoRouter.initialLocation — the splash page. From there the redirect  ║
+// ║    sends the user to their dashboard. So every auth-state change sends  ║
+// ║    the user back to the dashboard and every in-progress navigation is   ║
+// ║    cancelled. This is why both lenders (mobile) and head_managers (web) ║
+// ║    appear "stuck" on the dashboard — any attempt to navigate triggers   ║
+// ║    an auth state change (riverpod re-evaluates watchers) which recreates ║
+// ║    the router which resets navigation.                                   ║
+// ║                                                                          ║
+// ║  FIX:                                                                   ║
+// ║    Create the GoRouter ONCE using a RouterNotifier (ChangeNotifier)     ║
+// ║    backed by Riverpod. The GoRouter is configured with                  ║
+// ║    refreshListenable: routerNotifier so it re-evaluates the redirect   ║
+// ║    function (which calls ref.read, not ref.watch) whenever auth changes ║
+// ║    WITHOUT recreating the GoRouter instance. Navigation state is        ║
+// ║    preserved; only the redirect guard re-runs.                          ║
+// ║                                                                          ║
+// ║  SECONDARY FIXES (carried forward from original file):                  ║
+// ║    • /web/profile route added (prevents GoRouter 404 crash)             ║
+// ║    • Symmetric mobile-route guard for web roles                         ║
+// ║    • Auth loading → splash redirect                                     ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
-//
-//   WHAT HAPPENED:
-//     appRouterProvider was a Provider<GoRouter> that WATCHED authStateProvider:
-//
-//       final appRouterProvider = Provider<GoRouter>((ref) {
-//         final authState = ref.watch(authStateProvider);   // ← the bug
-//         return GoRouter(initialLocation: '/', ...);
-//       });
-//
-//     authStateProvider is a FutureProvider. It emits AsyncLoading THEN
-//     AsyncData. Every state change caused appRouterProvider to REBUILD,
-//     which returned a BRAND-NEW GoRouter with initialLocation: '/'.
-//
-//     Flutter's MaterialApp.router received a new routerConfig, tore down
-//     the old Router entirely, and started the new one from scratch at '/'.
-//     GoRouter's redirect then fired and sent the user to their dashboard.
-//
-//   CONSEQUENCE:
-//     • signInMobile() calls ref.invalidate(authStateProvider) after login.
-//     • This triggers TWO rebuilds of appRouterProvider:
-//         1. AsyncLoading  → new GoRouter → splash (redirect)
-//         2. AsyncData     → new GoRouter → dashboard (redirect)
-//     • The user always lands on the dashboard and CANNOT navigate elsewhere,
-//       because any authState reload resets the entire navigation stack.
-//     • This is why both lender/rider (mobile) and admin/employee (web) saw
-//       only the dashboard: every login reset them there.
-//
-//   FIX:
-//     Create the GoRouter EXACTLY ONCE (no watch). Use GoRouter's built-in
-//     refreshListenable mechanism: a _RouterNotifier (ChangeNotifier) that
-//     listens to authStateProvider via ref.listen. When authState changes,
-//     the notifier fires → GoRouter re-evaluates the redirect for the
-//     CURRENT location only — it does NOT reset to initialLocation.
-//     This preserves the user's navigation position while still enforcing
-//     auth rules on every route.
-//
-// ─────────────────────────────────────────────────────────────────────────
-//
-// BUG 2 (Missing route guard — web roles on mobile routes):
-//   Original guard blocked riders/lenders from /web/ routes but NOT
-//   head_manager/employee from /rider/ or /lender/ routes.
-//   FIX: Added symmetric guard.
-//
-// BUG 3 (Missing /web/profile route — GoRouter 404 crash):
-//   WebTopBar calls context.go(routeWebProfile) but no route existed.
-//   FIX: Added GoRoute for '/web/profile' inside the Web ShellRoute.
-//
-// BUG 4 (Auth loading state races in redirect):
-//   Handled by redirecting to splash while isLoading, then re-evaluating
-//   via refreshListenable when resolved — no race condition possible.
-// ═══════════════════════════════════════════════════════════════════════════
+
+// lib/core/router/app_router.dart
+// Jireta Loans & Credit Corp. 1996
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -93,119 +80,121 @@ import '../../presentation/mobile/pages/notifications/notifications_page.dart';
 import '../constants/app_constants.dart';
 import 'splash_page.dart';
 
-// ── Router Notifier ───────────────────────────────────────────────────────
-//
-// Bridges Riverpod → GoRouter.refreshListenable.
-// When authStateProvider emits any new state, notifyListeners() is called.
-// GoRouter then re-runs the redirect for the CURRENT location — it does NOT
-// reset the navigation stack or go back to initialLocation.
+// ══════════════════════════════════════════════════════════════
+// ✅ FIX: RouterNotifier — bridges Riverpod auth state to GoRouter
+//         without recreating the GoRouter instance on every change.
+// ══════════════════════════════════════════════════════════════
 
 class _RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+
   _RouterNotifier(this._ref) {
-    // Listen for any authState change and poke GoRouter to re-check redirects.
+    // Listen to authStateProvider changes and notify GoRouter to
+    // re-run its redirect function — WITHOUT recreating the router.
     _ref.listen<AsyncValue<Map<String, dynamic>?>>(
       authStateProvider,
       (_, __) => notifyListeners(),
     );
   }
-  final Ref _ref;
-}
 
-// ── Router Provider ───────────────────────────────────────────────────────
-//
-// The GoRouter is created ONCE. The _RouterNotifier drives redirect
-// re-evaluation without recreating the entire router.
+  /// Called by GoRouter's redirect on every navigation event.
+  String? redirect(BuildContext context, GoRouterState state) {
+    final session = Supabase.instance.client.auth.currentSession;
+    final location = state.matchedLocation;
+    final authState = _ref.read(authStateProvider);
 
-final appRouterProvider = Provider<GoRouter>((ref) {
-  final notifier = _RouterNotifier(ref);
+    final isSplash = location == AppConstants.routeSplash;
+    final isPublic = isSplash ||
+        [
+          AppConstants.routeWebLogin,
+          AppConstants.routeMobileLogin,
+          AppConstants.routeRegister,
+          AppConstants.routeForgotPassword,
+        ].any((r) => location.startsWith(r));
 
-  final router = GoRouter(
-    initialLocation: AppConstants.routeSplash,
-    debugLogDiagnostics: kDebugMode,
+    // ── Unauthenticated ───────────────────────────────────────
+    if (session == null && !isPublic) {
+      return kIsWeb
+          ? AppConstants.routeWebLogin
+          : AppConstants.routeMobileLogin;
+    }
 
-    // FIX (ROOT CAUSE): refreshListenable triggers redirect re-evaluation
-    // for the CURRENT location — it does NOT reset to initialLocation.
-    refreshListenable: notifier,
+    if (session != null) {
+      // While auth state is loading, hold at splash so we don't
+      // flash the wrong page or redirect with a stale/empty role.
+      if (authState.isLoading) {
+        return isSplash ? null : AppConstants.routeSplash;
+      }
 
-    redirect: (context, state) {
-      // FIX: Use ref.read (not ref.watch) — reading inside redirect is safe
-      // because refreshListenable will re-call redirect when authState changes.
-      final authState = ref.read(authStateProvider);
-      final session   = Supabase.instance.client.auth.currentSession;
-      final location  = state.matchedLocation;
-
-      final publicRoutes = [
-        AppConstants.routeSplash,
-        AppConstants.routeWebLogin,
-        AppConstants.routeMobileLogin,
-        AppConstants.routeRegister,
-        AppConstants.routeForgotPassword,
-      ];
-
-      final isPublic = publicRoutes.any((r) => location.startsWith(r));
-
-      // ── Unauthenticated: send to correct login ──────────────────────────
-      if (session == null && !isPublic) {
+      final user = authState.value;
+      if (user == null) {
+        // DB profile missing or fetch failed → re-login.
         return kIsWeb
             ? AppConstants.routeWebLogin
             : AppConstants.routeMobileLogin;
       }
 
-      if (session != null) {
-        // While authState is still loading, wait at splash so the user
-        // doesn't see a flash of the wrong page.
-        if (authState.isLoading) {
-          return location == AppConstants.routeSplash ? null : AppConstants.routeSplash;
-        }
+      final role = user['role'] as String? ?? '';
 
-        final user = authState.value;
-        if (user == null) {
-          // DB profile missing → re-login.
-          return kIsWeb
-              ? AppConstants.routeWebLogin
-              : AppConstants.routeMobileLogin;
-        }
-
-        final role = user['role'] as String? ?? '';
-
-        // ── Redirect away from auth/splash pages once logged in ───────────
-        if (isPublic && location != AppConstants.routeSplash) {
-          switch (role) {
-            case 'head_manager':
-            case 'employee':
-              return AppConstants.routeWebDashboard;
-            case 'rider':
-              return AppConstants.routeRiderDashboard;
-            case 'lender':
-              return AppConstants.routeLenderDashboard;
-          }
-        }
-
-        // ── FIX BUG 2: Block web-only roles from mobile routes ────────────
-        if ((location.startsWith('/rider/') || location.startsWith('/lender/')) &&
-            ['head_manager', 'employee'].contains(role)) {
-          return AppConstants.routeWebDashboard;
-        }
-
-        // ── Block mobile-only roles from web routes ───────────────────────
-        if (location.startsWith('/web/') &&
-            !['head_manager', 'employee'].contains(role)) {
-          return AppConstants.routeMobileLogin;
+      // ── Redirect away from auth pages after login ─────────
+      if (isPublic && !isSplash) {
+        switch (role) {
+          case 'head_manager':
+          case 'employee':
+            return AppConstants.routeWebDashboard;
+          case 'rider':
+            return AppConstants.routeRiderDashboard;
+          case 'lender':
+            return AppConstants.routeLenderDashboard;
         }
       }
 
-      return null; // No redirect — allow navigation.
-    },
+      // ── Block web-only roles from mobile routes ────────────
+      if ((location.startsWith('/rider/') || location.startsWith('/lender/')) &&
+          ['head_manager', 'employee'].contains(role)) {
+        return AppConstants.routeWebDashboard;
+      }
 
+      // ── Block mobile-only roles from web routes ────────────
+      if (location.startsWith('/web/') &&
+          !['head_manager', 'employee'].contains(role)) {
+        return AppConstants.routeMobileLogin;
+      }
+    }
+
+    return null; // No redirect needed.
+  }
+}
+
+// ── Provider ────────────────────────────────────────────────
+//
+// ✅ FIX: appRouterProvider now creates the GoRouter ONCE.
+//         authStateProvider is no longer watched here, so the
+//         provider never re-runs and the GoRouter is never recreated.
+//         Instead, _RouterNotifier.notifyListeners() triggers GoRouter
+//         to re-evaluate its redirect without rebuilding the router.
+
+final routerNotifierProvider = Provider<_RouterNotifier>((ref) {
+  return _RouterNotifier(ref);
+});
+
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final notifier = ref.watch(routerNotifierProvider);
+
+  return GoRouter(
+    initialLocation: AppConstants.routeSplash,
+    debugLogDiagnostics: kDebugMode,
+    refreshListenable: notifier, // ✅ FIX: notify without recreating
+    redirect: notifier.redirect,
     routes: [
-      // ── Splash ──────────────────────────────────────────────────────────
+      // ── Splash ──────────────────────────────────────────
       GoRoute(
         path: AppConstants.routeSplash,
         name: 'splash',
         builder: (_, __) => const SplashPage(),
       ),
 
-      // ── Auth ─────────────────────────────────────────────────────────────
+      // ── Auth ────────────────────────────────────────────
       GoRoute(
         path: AppConstants.routeWebLogin,
         name: 'web-login',
@@ -232,7 +221,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const ForgotPasswordPage(),
       ),
 
-      // ── Web Shell (Sidebar Layout) ────────────────────────────────────────
+      // ── Web Shell (Sidebar Layout) ───────────────────────
       ShellRoute(
         builder: (context, state, child) => WebLayout(child: child),
         routes: [
@@ -255,8 +244,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeWebEmployees,
             name: 'web-employees',
-            pageBuilder: (_, state) =>
-                _fadePage(state, const EmployeesPage()),
+            pageBuilder: (_, state) => _fadePage(state, const EmployeesPage()),
           ),
           GoRoute(
             path: AppConstants.routeWebRiders,
@@ -292,28 +280,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeWebSettings,
             name: 'web-settings',
-            pageBuilder: (_, state) =>
-                _fadePage(state, const SettingsPage()),
+            pageBuilder: (_, state) => _fadePage(state, const SettingsPage()),
           ),
           GoRoute(
             path: AppConstants.routeWebAuditLogs,
             name: 'web-audit-logs',
-            pageBuilder: (_, state) =>
-                _fadePage(state, const AuditLogsPage()),
+            pageBuilder: (_, state) => _fadePage(state, const AuditLogsPage()),
           ),
-          // FIX BUG 3: Added missing /web/profile route.
-          // WebTopBar calls context.go(routeWebProfile); without this route
-          // GoRouter threw a 404 error page when the profile icon was tapped.
+          // ✅ Added missing /web/profile route (prevents GoRouter 404 crash)
           GoRoute(
             path: AppConstants.routeWebProfile,
             name: 'web-profile',
-            pageBuilder: (_, state) =>
-                _fadePage(state, const WebProfilePage()),
+            pageBuilder: (_, state) => _fadePage(state, const WebProfilePage()),
           ),
         ],
       ),
 
-      // ── Rider Shell (Mobile Floating Nav) ─────────────────────────────────
+      // ── Rider Shell (Mobile Floating Nav) ────────────────
       ShellRoute(
         builder: (context, state, child) =>
             MobileLayout(role: 'rider', child: child),
@@ -347,8 +330,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeRiderProfile,
             name: 'rider-profile',
-            pageBuilder: (_, state) =>
-                _slidePage(state, const ProfilePage()),
+            pageBuilder: (_, state) => _slidePage(state, const ProfilePage()),
           ),
           GoRoute(
             path: AppConstants.routeRiderNotifications,
@@ -359,7 +341,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // ── Lender Shell (Mobile Floating Nav) ────────────────────────────────
+      // ── Lender Shell (Mobile Floating Nav) ───────────────
       ShellRoute(
         builder: (context, state, child) =>
             MobileLayout(role: 'lender', child: child),
@@ -404,8 +386,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeLenderProfile,
             name: 'lender-profile',
-            pageBuilder: (_, state) =>
-                _slidePage(state, const ProfilePage()),
+            pageBuilder: (_, state) => _slidePage(state, const ProfilePage()),
           ),
           GoRoute(
             path: AppConstants.routeLenderNotifications,
@@ -425,51 +406,52 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
             Text('Page not found: ${state.error}'),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.go(
+                kIsWeb
+                    ? AppConstants.routeWebLogin
+                    : AppConstants.routeMobileLogin,
+              ),
+              child: const Text('Go to Login'),
+            ),
           ],
         ),
       ),
     ),
   );
-
-  // Dispose both the router and the notifier when the provider is disposed.
-  ref.onDispose(() {
-    notifier.dispose();
-    router.dispose();
-  });
-
-  return router;
 });
 
-// ── Page Transitions ─────────────────────────────────────────────────────
+// ── Page Transitions ────────────────────────────────────────
 
 CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
   return CustomTransitionPage(
-    key:   state.pageKey,
+    key: state.pageKey,
     child: child,
     transitionDuration: const Duration(milliseconds: 250),
     transitionsBuilder: (_, animation, __, child) => FadeTransition(
       opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
-      child:   child,
+      child: child,
     ),
   );
 }
 
 CustomTransitionPage<void> _slidePage(GoRouterState state, Widget child) {
   return CustomTransitionPage(
-    key:   state.pageKey,
+    key: state.pageKey,
     child: child,
     transitionDuration: const Duration(milliseconds: 350),
     transitionsBuilder: (_, animation, __, child) {
       final offset = Tween<Offset>(
         begin: const Offset(1.0, 0.0),
-        end:   Offset.zero,
+        end: Offset.zero,
       ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
       return SlideTransition(position: offset, child: child);
     },
   );
 }
 
-// ── Placeholder Pages ────────────────────────────────────────────────────
+// ── Placeholder pages referenced in router ──────────────────
 
 class RiderAssignmentsPage extends StatelessWidget {
   const RiderAssignmentsPage({super.key});
@@ -489,7 +471,6 @@ class LenderDocumentsPage extends StatelessWidget {
   Widget build(BuildContext context) => const _PlaceholderPage('Documents');
 }
 
-// FIX BUG 3: WebProfilePage added so /web/profile no longer crashes.
 class WebProfilePage extends StatelessWidget {
   const WebProfilePage({super.key});
   @override

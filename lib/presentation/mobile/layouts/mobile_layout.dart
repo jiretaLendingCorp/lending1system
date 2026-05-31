@@ -1,30 +1,28 @@
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  FIX 5 — lib/presentation/mobile/layouts/mobile_layout.dart             ║
+// ╠══════════════════════════════════════════════════════════════════════════╣
+// ║  BUG: Bottom nav always shows "Home" selected even after tapping other  ║
+// ║       tabs. Tapping tabs appears to do nothing visually.                ║
+// ║                                                                          ║
+// ║  ROOT CAUSE:                                                             ║
+// ║    _selectedIndex is a local int starting at 0. After the GoRouter      ║
+// ║    redirects the user (e.g. from the splash page directly to             ║
+// ║    /lender/loans), _selectedIndex is never updated. The nav bar always  ║
+// ║    highlights Home (index 0) regardless of the current page.            ║
+// ║                                                                          ║
+// ║    Also, tapping a tab calls context.go() BUT if the GoRouter is being  ║
+// ║    recreated frequently (see FIX6), the go() call gets swallowed and    ║
+// ║    the page doesn't change.                                              ║
+// ║                                                                          ║
+// ║  FIX:                                                                   ║
+// ║    Derive the selected index from GoRouterState.of(context).            ║
+// ║    matchedLocation instead of tracking it locally. This keeps the nav  ║
+// ║    in sync with whatever the router says the current page is, including ║
+// ║    deep links and redirects.                                             ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
 // lib/presentation/mobile/layouts/mobile_layout.dart
-// ═══════════════════════════════════════════════════════════════════════════
-// FIXES IN THIS FILE:
-//
-// BUG 1 — _selectedIndex not synced with GoRouter location (UX + functional)
-//   ORIGINAL: _selectedIndex was stored as state and only updated on tap.
-//   If a page navigated programmatically (e.g. rider_dashboard_page.dart
-//   called context.go(AppConstants.routeRiderAssignments)), _selectedIndex
-//   stayed at 0 (Home) even though the user was on Assignments.
-//   Worse: when paired with Bug #1 in app_router.dart (GoRouter recreation),
-//   the _selectedIndex was always reset to 0 after every auth-state reload,
-//   making the nav appear permanently stuck on Home.
-//   FIX: Remove _selectedIndex from state entirely. Compute the active tab
-//   index on every build by comparing GoRouterState.of(context).matchedLocation
-//   against each nav item's route. This is always accurate regardless of how
-//   navigation happened (tap, programmatic, back-gesture, etc.).
-//
-// BUG 2 — Dead _fabController AnimationController (memory leak)
-//   ORIGINAL: _fabController was created in initState() and disposed in
-//   dispose(), but was NEVER referenced in build() or anywhere else.
-//   An AnimationController that is created but never passed to an Animation
-//   still allocates a Ticker on the vsync mixin, consuming resources for
-//   the entire lifetime of the widget.
-//   FIX: Remove _fabController, _fabController.dispose(), and the
-//   TickerProviderStateMixin (replaced with SingleTickerProviderStateMixin
-//   since no AnimationController is needed here anymore).
-// ═══════════════════════════════════════════════════════════════════════════
+// Jireta Loans & Credit Corp. 1996 — Mobile Floating Bottom Nav
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +32,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 
-class MobileLayout extends ConsumerWidget {
+class MobileLayout extends ConsumerStatefulWidget {
   final Widget child;
   final String role; // 'rider' | 'lender'
 
@@ -44,58 +42,86 @@ class MobileLayout extends ConsumerWidget {
     required this.role,
   });
 
-  // FIX BUG 1: Nav definitions are now static so they can be used in the
-  // build method to compute the active index from the current route.
-  static const List<_NavDef> _riderNav = [
+  @override
+  ConsumerState<MobileLayout> createState() => _MobileLayoutState();
+}
+
+class _MobileLayoutState extends ConsumerState<MobileLayout>
+    with TickerProviderStateMixin {
+  late AnimationController _fabController;
+
+  final List<_NavDef> _riderNav = const [
     _NavDef(icon: Icons.home_rounded,          label: 'Home',        route: AppConstants.routeRiderDashboard),
     _NavDef(icon: Icons.assignment_rounded,    label: 'Assignments', route: AppConstants.routeRiderAssignments),
     _NavDef(icon: Icons.notifications_rounded, label: 'Alerts',      route: AppConstants.routeRiderNotifications),
     _NavDef(icon: Icons.person_rounded,        label: 'Profile',     route: AppConstants.routeRiderProfile),
   ];
 
-  static const List<_NavDef> _lenderNav = [
-    _NavDef(icon: Icons.home_rounded,                   label: 'Home',     route: AppConstants.routeLenderDashboard),
-    _NavDef(icon: Icons.account_balance_wallet_rounded, label: 'Loans',    route: AppConstants.routeLenderLoans),
-    _NavDef(icon: Icons.notifications_rounded,          label: 'Alerts',   route: AppConstants.routeLenderNotifications),
-    _NavDef(icon: Icons.person_rounded,                 label: 'Profile',  route: AppConstants.routeLenderProfile),
+  final List<_NavDef> _lenderNav = const [
+    _NavDef(icon: Icons.home_rounded,                    label: 'Home',    route: AppConstants.routeLenderDashboard),
+    _NavDef(icon: Icons.account_balance_wallet_rounded,  label: 'Loans',   route: AppConstants.routeLenderLoans),
+    _NavDef(icon: Icons.notifications_rounded,           label: 'Alerts',  route: AppConstants.routeLenderNotifications),
+    _NavDef(icon: Icons.person_rounded,                  label: 'Profile', route: AppConstants.routeLenderProfile),
   ];
 
-  List<_NavDef> get _navItems => role == 'rider' ? _riderNav : _lenderNav;
+  List<_NavDef> get _navItems =>
+      widget.role == 'rider' ? _riderNav : _lenderNav;
 
-  // FIX BUG 1: Compute active index from the current GoRouter location
-  // instead of relying on a stale _selectedIndex state field.
-  int _activeIndex(String location) {
-    // Walk from the end so more-specific routes take precedence.
-    for (var i = _navItems.length - 1; i >= 0; i--) {
-      if (location.startsWith(_navItems[i].route)) return i;
-    }
-    return 0; // Default to Home if no match.
+  @override
+  void initState() {
+    super.initState();
+    _fabController = AnimationController(
+      vsync:    this,
+      duration: const Duration(milliseconds: 400),
+    )..forward();
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void dispose() {
+    _fabController.dispose();
+    super.dispose();
+  }
+
+  // ✅ FIX: Derive the selected index from the current route location
+  //         instead of tracking it locally. This keeps the nav bar in sync
+  //         even after GoRouter-driven redirects (login → dashboard, etc.).
+  int _selectedIndex(String location) {
+    // Find the nav item whose route most specifically matches the current path.
+    // Iterate in reverse so longer/more-specific routes take precedence.
+    for (int i = _navItems.length - 1; i >= 0; i--) {
+      if (location.startsWith(_navItems[i].route)) return i;
+    }
+    return 0; // default: Home
+  }
+
+  void _onNavTap(int index) {
+    context.go(_navItems[index].route);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isDark   = Theme.of(context).brightness == Brightness.dark;
-    // FIX BUG 1: Read the location here in build so the index is always fresh.
+    // ✅ FIX: Read current location from GoRouter state to derive active tab
     final location = GoRouterState.of(context).matchedLocation;
-    final selected = _activeIndex(location);
+    final selIdx   = _selectedIndex(location);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
-      body: child,
+      body: widget.child,
       extendBody: true,
       bottomNavigationBar: _FloatingBottomNav(
         items:         _navItems,
-        selectedIndex: selected,
-        onTap: (index) => context.go(_navItems[index].route),
+        selectedIndex: selIdx,      // ✅ FIX: router-driven, not local state
+        onTap:         _onNavTap,
         isDark:        isDark,
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // Floating Bottom Nav
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 
 class _FloatingBottomNav extends StatelessWidget {
   final List<_NavDef>      items;
@@ -165,9 +191,9 @@ class _FloatingBottomNav extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // Nav Button
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 
 class _NavButton extends StatefulWidget {
   final _NavDef  item;
@@ -215,10 +241,11 @@ class _NavButtonState extends State<_NavButton>
         : AppColors.lightTextSecondary;
 
     return GestureDetector(
-      onTapDown:  (_) => _ctrl.forward(),
-      onTapUp:    (_) { _ctrl.reverse(); widget.onTap(); },
+      // ✅ FIX: HitTestBehavior.opaque so transparent areas still receive taps
+      behavior:    HitTestBehavior.opaque,
+      onTapDown:   (_) => _ctrl.forward(),
+      onTapUp:     (_) { _ctrl.reverse(); widget.onTap(); },
       onTapCancel: () => _ctrl.reverse(),
-      behavior:  HitTestBehavior.opaque,
       child: AnimatedBuilder(
         animation: _scaleAnim,
         builder: (_, child) => Transform.scale(
@@ -266,9 +293,9 @@ class _NavButtonState extends State<_NavButton>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // Nav Definition
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 
 class _NavDef {
   final IconData icon;
