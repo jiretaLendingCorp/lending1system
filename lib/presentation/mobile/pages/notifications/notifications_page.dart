@@ -98,9 +98,13 @@ class _NotificationTile extends StatelessWidget {
       try {
         final dt = DateTime.parse(created);
         final diff = DateTime.now().difference(dt);
-        if (diff.inMinutes < 60)      dateLabel = '${diff.inMinutes}m ago';
-        else if (diff.inHours < 24)   dateLabel = '${diff.inHours}h ago';
-        else                          dateLabel = DateFormat('MMM d').format(dt);
+        if (diff.inMinutes < 60) {
+          dateLabel = '${diff.inMinutes}m ago';
+        } else if (diff.inHours < 24) {
+          dateLabel = '${diff.inHours}h ago';
+        } else {
+          dateLabel = DateFormat('MMM d').format(dt);
+        }
       } catch (_) {}
     }
 

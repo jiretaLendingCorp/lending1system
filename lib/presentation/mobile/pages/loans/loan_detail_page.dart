@@ -32,7 +32,7 @@
 //    loan['borrower_name']   →  derived from lenders→users join
 //    loan['borrower_phone']  →  derived from lenders→users join
 //    co_borrower_* fields    →  removed (not in schema — co-borrower lives in
-//                                a separate table; leave as TODO)
+//                                a separate table; implementation pending)
 //
 // 5. WRONG FIELD NAMES — payments query (runtime null values)
 //    Payment history now comes from the `payments` table (correct) instead of

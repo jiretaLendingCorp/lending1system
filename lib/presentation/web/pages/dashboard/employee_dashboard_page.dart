@@ -366,7 +366,6 @@ class _QuickLinkState extends State<_QuickLink> {
   bool _hovered = false;
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit:  (_) => setState(() => _hovered = false),

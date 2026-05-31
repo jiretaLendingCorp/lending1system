@@ -83,7 +83,6 @@ class _WebProfilePageState extends ConsumerState<WebProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark     = Theme.of(context).brightness == Brightness.dark;
     final async      = ref.watch(webProfileDetailProvider);
     final authUser   = ref.watch(authStateProvider).value;
     final role       = authUser?['role'] as String? ?? '';
@@ -266,9 +265,9 @@ class _InfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Text('Personal Information', style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w700)),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Text('Personal Information', style: TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w700)),
           ),
           Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
           ...rows.map((r) => Column(
