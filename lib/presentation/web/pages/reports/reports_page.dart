@@ -1,3 +1,22 @@
+// ============================================================
+// FIX FILE: lib/presentation/web/pages/reports/reports_page.dart
+// ============================================================
+// BUG FIXED:
+//
+// PostgrestException: "column loans.amount does not exist" (code: 42703)
+//
+//   ROOT CAUSE: The provider queried:
+//     .from('loans').select('amount, status, created_at')
+//   The 'loans' table has NO 'amount' column and NO 'status' column.
+//   The actual schema columns are:
+//     • principal_amount  DECIMAL(12,2)  — the loan's principal
+//     • loan_status       loan_status_enum — status of the loan
+//
+//   FIX: Change the select and all downstream references:
+//     'amount'  → 'principal_amount'
+//     'status'  → 'loan_status'
+// ============================================================
+
 // lib/presentation/web/pages/reports/reports_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,9 +31,15 @@ final reportSummaryProvider =
     FutureProvider<Map<String, dynamic>>((ref) async {
   final db = Supabase.instance.client;
 
-  final loans = await db.from('loans').select('amount, status, created_at');
+  // FIX: principal_amount (not 'amount'), loan_status (not 'status')
+  final loans = await db
+      .from('loans')
+      .select('principal_amount, loan_status, created_at')
+      .eq('is_archived', false);
+
+  // payments.amount exists in schema (DECIMAL(12,2))
   final collections =
-      await db.from('collections').select('amount, collection_date');
+      await db.from('payments').select('amount').eq('payment_status', 'completed');
 
   double totalDisbursed = 0;
   double totalCollected = 0;
@@ -23,10 +48,12 @@ final reportSummaryProvider =
   final monthly = <String, double>{};
 
   for (final l in loans as List) {
-    final amt = (l['amount'] as num?)?.toDouble() ?? 0;
+    // FIX: principal_amount
+    final amt = (l['principal_amount'] as num?)?.toDouble() ?? 0;
     totalDisbursed += amt;
-    if (l['status'] == 'active') activeLoans++;
-    if (l['status'] == 'overdue') overdueLoans++;
+    // FIX: loan_status
+    if (l['loan_status'] == 'active') activeLoans++;
+    if (l['loan_status'] == 'overdue') overdueLoans++;
 
     final d = l['created_at'];
     if (d != null) {
@@ -382,7 +409,8 @@ class _KpiCard extends StatelessWidget {
           side: BorderSide(color: Colors.grey.shade200)),
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             CircleAvatar(
               radius: 20,

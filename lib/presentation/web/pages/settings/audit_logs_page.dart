@@ -1,3 +1,29 @@
+// ============================================================
+// FIX FILE: lib/presentation/web/pages/settings/audit_logs_page.dart
+// ============================================================
+// BUGS FIXED:
+//
+// BUG 1 — Query: users(full_name, email, role)
+//   • 'full_name' — NOT a column in 'users'. The schema has first_name
+//     and last_name as separate columns.
+//   • 'role'      — NOT a column in 'users'. Role is stored in a
+//     separate 'roles' table and linked via role_id FK. The raw DB
+//     row does not have a 'role' text column.
+//
+//   FIX: Change the select to:
+//     users!user_id(first_name, last_name, email)
+//   and build display name from first_name + last_name in Dart.
+//   For role display, join roles table: roles!role_id(name).
+//
+// BUG 2 — Displaying l['users']?['full_name'] and l['users']?['role']
+//   Both would always return null with the old query (even if the join
+//   succeeded) because those columns don't exist. The table shows '-'
+//   for every user and role cell.
+//
+//   FIX: Use first_name + last_name to build the display name; read
+//   role from the nested roles join.
+// ============================================================
+
 // lib/presentation/web/pages/settings/audit_logs_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,11 +31,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 
+// FIX: Correct field names — first_name, last_name (no full_name or role column)
+// Join roles!role_id(name) to get the role string
 final auditLogsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final res = await Supabase.instance.client
       .from('audit_logs')
-      .select('*, users(full_name, email, role)')
+      .select(
+        'id, action, description, ip_address, created_at, '
+        'users!user_id(first_name, last_name, email, roles!role_id(name))',
+      )
       .order('created_at', ascending: false)
       .limit(300);
   return List<Map<String, dynamic>>.from(res);
@@ -17,6 +48,21 @@ final auditLogsProvider =
 
 final auditSearchProvider = StateProvider<String>((ref) => '');
 final auditActionFilterProvider = StateProvider<String>((ref) => 'all');
+
+// ── Helper: build display name from first/last ────────────────────────────────
+String _fullName(Map<String, dynamic>? u) {
+  if (u == null) return '-';
+  final f = u['first_name'] as String? ?? '';
+  final l = u['last_name'] as String? ?? '';
+  return '$f $l'.trim().isEmpty ? '-' : '$f $l'.trim();
+}
+
+// ── Helper: extract role name from nested join ────────────────────────────────
+String _roleName(Map<String, dynamic>? u) {
+  if (u == null) return '-';
+  final roles = u['roles'] as Map<String, dynamic>?;
+  return (roles?['name'] as String? ?? '-').toUpperCase();
+}
 
 class AuditLogsPage extends ConsumerWidget {
   const AuditLogsPage({super.key});
@@ -36,7 +82,9 @@ class AuditLogsPage extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Text('Audit Logs',
                       style: Theme.of(context)
                           .textTheme
@@ -92,16 +140,11 @@ class AuditLogsPage extends ConsumerWidget {
                   DropdownMenuItem(value: 'all', child: Text('All Actions')),
                   DropdownMenuItem(value: 'login', child: Text('Login')),
                   DropdownMenuItem(value: 'logout', child: Text('Logout')),
-                  DropdownMenuItem(
-                      value: 'create', child: Text('Create')),
-                  DropdownMenuItem(
-                      value: 'update', child: Text('Update')),
-                  DropdownMenuItem(
-                      value: 'delete', child: Text('Delete')),
-                  DropdownMenuItem(
-                      value: 'approve', child: Text('Approve')),
-                  DropdownMenuItem(
-                      value: 'reject', child: Text('Reject')),
+                  DropdownMenuItem(value: 'create', child: Text('Create')),
+                  DropdownMenuItem(value: 'update', child: Text('Update')),
+                  DropdownMenuItem(value: 'delete', child: Text('Delete')),
+                  DropdownMenuItem(value: 'approve', child: Text('Approve')),
+                  DropdownMenuItem(value: 'reject', child: Text('Reject')),
                 ],
                 onChanged: (v) =>
                     ref.read(auditActionFilterProvider.notifier).state = v!,
@@ -117,7 +160,10 @@ class AuditLogsPage extends ConsumerWidget {
                 error: (e, _) => Center(child: Text('Error: $e')),
                 data: (logs) {
                   final filtered = logs.where((l) {
-                    final q = '${l['users']?['full_name'] ?? ''} '
+                    final u = l['users'] as Map<String, dynamic>?;
+                    // FIX: build search string from first_name + last_name
+                    final q = '${_fullName(u)} '
+                            '${u?['email'] ?? ''} '
                             '${l['action'] ?? ''} '
                             '${l['description'] ?? ''}'
                         .toLowerCase();
@@ -156,24 +202,26 @@ class AuditLogsPage extends ConsumerWidget {
                             DataColumn(label: Text('Timestamp')),
                           ],
                           rows: filtered.map((l) {
+                            final u =
+                                l['users'] as Map<String, dynamic>?;
                             return DataRow(cells: [
                               DataCell(Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment:
                                     CrossAxisAlignment.start,
                                 children: [
-                                  Text(l['users']?['full_name'] ?? '-',
+                                  // FIX: build name from first_name + last_name
+                                  Text(_fullName(u),
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w500)),
-                                  Text(l['users']?['email'] ?? '-',
+                                  Text(u?['email'] ?? '-',
                                       style: const TextStyle(
                                           fontSize: 11,
                                           color: Colors.grey)),
                                 ],
                               )),
-                              DataCell(Text(
-                                  (l['users']?['role'] as String? ?? '-')
-                                      .toUpperCase(),
+                              // FIX: role from nested roles join
+                              DataCell(Text(_roleName(u),
                                   style: const TextStyle(fontSize: 12))),
                               DataCell(_ActionBadge(
                                   action: l['action'] ?? 'unknown')),
@@ -217,6 +265,8 @@ class AuditLogsPage extends ConsumerWidget {
     }
   }
 }
+
+// ── Action Badge ──────────────────────────────────────────────────────────────
 
 class _ActionBadge extends StatelessWidget {
   final String action;

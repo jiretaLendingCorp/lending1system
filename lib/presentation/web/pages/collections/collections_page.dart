@@ -1,3 +1,30 @@
+// ============================================================
+// FIX FILE: lib/presentation/web/pages/collections/collections_page.dart
+// ============================================================
+// BUGS FIXED:
+//
+// BUG 1 — PostgrestException: "Could not find a relationship between
+//   'collections' and 'users' in the schema cache" (hint: rider_id)
+//
+//   ROOT CAUSE: The query used 'users!rider_id(full_name)'. However,
+//   collections.rider_id is a FK to the 'riders' table — NOT to 'users'.
+//   The schema is:  collections.rider_id → riders.id → users.user_id
+//   PostgREST cannot find a direct FK from collections to users on the
+//   rider_id column, so it throws PGRST200.
+//
+//   FIX: Use the correct join path:
+//     riders!rider_id(users!user_id(first_name, last_name))
+//
+// BUG 2 — Field name mismatches (schema vs original code):
+//   • 'loans.loan_number'   → 'loans.loan_code'   (schema column name)
+//   • 'loans.borrower_name' → NOT in schema; name via lenders→users join
+//   • 'c['amount']'         → 'c['collected_amount']' (schema column)
+//   • 'c['status']'         → 'c['collection_status']' (schema column)
+//   • 'c['collection_date']'→ 'c['completed_at']' (no collection_date col)
+//   • Status filter values  → schema enum: pending/assigned/collecting/
+//                             completed/failed  (not collected/partial/missed)
+// ============================================================
+
 // lib/presentation/web/pages/collections/collections_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,18 +32,34 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 
+// FIX: Correct join path for rider name, correct loan fields
 final collectionsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final res = await Supabase.instance.client
       .from('collections')
-      .select('*, loans(loan_number, borrower_name), users!rider_id(full_name)')
-      .order('collection_date', ascending: false)
+      .select(
+        'id, collection_code, collection_status, target_amount, '
+        'collected_amount, assigned_at, completed_at, created_at, '
+        // FIX: loan_code not loan_number; join to lenders→users for borrower name
+        'loans!loan_id(loan_code, lenders!lender_id(users!user_id(first_name, last_name))), '
+        // FIX: riders!rider_id → users!user_id (correct FK chain)
+        'riders!rider_id(users!user_id(first_name, last_name))',
+      )
+      .order('created_at', ascending: false)
       .limit(200);
   return List<Map<String, dynamic>>.from(res);
 });
 
 final colDateFilterProvider = StateProvider<DateTime?>((ref) => null);
 final colStatusFilterProvider = StateProvider<String>((ref) => 'all');
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+String _fullName(Map<String, dynamic>? u) {
+  if (u == null) return '-';
+  final f = u['first_name'] as String? ?? '';
+  final l = u['last_name'] as String? ?? '';
+  return '$f $l'.trim().isEmpty ? '-' : '$f $l'.trim();
+}
 
 class CollectionsPage extends ConsumerWidget {
   const CollectionsPage({super.key});
@@ -56,10 +99,15 @@ class CollectionsPage extends ConsumerWidget {
             // Summary cards
             async.maybeWhen(
               data: (cols) {
+                // FIX: use collected_amount (not 'amount')
                 final total = cols.fold<double>(
-                    0, (s, c) => s + ((c['amount'] as num?)?.toDouble() ?? 0));
+                    0,
+                    (s, c) =>
+                        s +
+                        ((c['collected_amount'] as num?)?.toDouble() ?? 0));
                 final todayCols = cols.where((c) {
-                  final d = c['collection_date'];
+                  // FIX: use completed_at (no collection_date column)
+                  final d = c['completed_at'] ?? c['created_at'];
                   if (d == null) return false;
                   final dt = DateTime.tryParse(d.toString());
                   if (dt == null) return false;
@@ -69,25 +117,28 @@ class CollectionsPage extends ConsumerWidget {
                       dt.day == now.day;
                 }).toList();
                 final todayTotal = todayCols.fold<double>(
-                    0, (s, c) => s + ((c['amount'] as num?)?.toDouble() ?? 0));
+                    0,
+                    (s, c) =>
+                        s +
+                        ((c['collected_amount'] as num?)?.toDouble() ?? 0));
 
                 return Row(children: [
                   _SummaryCard(
-                    label: "Total Collected",
-                    value: "₱${_fmt(total)}",
+                    label: 'Total Collected',
+                    value: '₱${_fmt(total)}',
                     icon: Icons.payments,
                     color: Colors.green,
                   ),
                   const SizedBox(width: 12),
                   _SummaryCard(
                     label: "Today's Collections",
-                    value: "₱${_fmt(todayTotal)}",
+                    value: '₱${_fmt(todayTotal)}',
                     icon: Icons.today,
                     color: Colors.blue,
                   ),
                   const SizedBox(width: 12),
                   _SummaryCard(
-                    label: "Records",
+                    label: 'Records',
                     value: cols.length.toString(),
                     icon: Icons.list_alt,
                     color: Colors.purple,
@@ -112,14 +163,19 @@ class CollectionsPage extends ConsumerWidget {
                         horizontal: 12, vertical: 10),
                     filled: true,
                   ),
+                  // FIX: Use correct collection_status enum values from schema
                   items: const [
                     DropdownMenuItem(value: 'all', child: Text('All')),
                     DropdownMenuItem(
-                        value: 'collected', child: Text('Collected')),
+                        value: 'pending', child: Text('Pending')),
                     DropdownMenuItem(
-                        value: 'partial', child: Text('Partial')),
+                        value: 'assigned', child: Text('Assigned')),
                     DropdownMenuItem(
-                        value: 'missed', child: Text('Missed')),
+                        value: 'collecting', child: Text('Collecting')),
+                    DropdownMenuItem(
+                        value: 'completed', child: Text('Completed')),
+                    DropdownMenuItem(
+                        value: 'failed', child: Text('Failed')),
                   ],
                   onChanged: (v) =>
                       ref.read(colStatusFilterProvider.notifier).state = v!,
@@ -162,11 +218,13 @@ class CollectionsPage extends ConsumerWidget {
                 error: (e, _) => Center(child: Text('Error: $e')),
                 data: (cols) {
                   final filtered = cols.where((c) {
+                    // FIX: collection_status (not 'status')
                     final matchStatus = statusFilter == 'all' ||
-                        (c['status'] ?? '') == statusFilter;
+                        (c['collection_status'] ?? '') == statusFilter;
                     bool matchDate = true;
                     if (dateFilter != null) {
-                      final d = c['collection_date'];
+                      // FIX: completed_at or created_at
+                      final d = c['completed_at'] ?? c['created_at'];
                       if (d != null) {
                         final dt = DateTime.tryParse(d.toString());
                         if (dt != null) {
@@ -201,27 +259,42 @@ class CollectionsPage extends ConsumerWidget {
                                 .surfaceContainerHighest,
                           ),
                           columns: const [
-                            DataColumn(label: Text('Loan #')),
+                            DataColumn(label: Text('Loan Code')),
                             DataColumn(label: Text('Borrower')),
                             DataColumn(label: Text('Rider')),
-                            DataColumn(label: Text('Amount (₱)')),
+                            DataColumn(label: Text('Collected (₱)')),
+                            DataColumn(label: Text('Target (₱)')),
                             DataColumn(label: Text('Date')),
                             DataColumn(label: Text('Status')),
                           ],
                           rows: filtered.map((c) {
+                            // FIX: loan_code (not loan_number)
+                            final loanCode =
+                                c['loans']?['loan_code'] ?? '-';
+                            // FIX: borrower name from lenders→users join
+                            final borrowerUser = c['loans']?['lenders']
+                                ?['users'] as Map<String, dynamic>?;
+                            final borrowerName = _fullName(borrowerUser);
+                            // FIX: rider name from riders→users join
+                            final riderUser = c['riders']?['users']
+                                as Map<String, dynamic>?;
+                            final riderName = _fullName(riderUser);
                             return DataRow(cells: [
-                              DataCell(Text(
-                                  c['loans']?['loan_number'] ?? '-')),
-                              DataCell(Text(
-                                  c['loans']?['borrower_name'] ?? '-')),
-                              DataCell(Text(
-                                  c['users']?['full_name'] ?? '-')),
-                              DataCell(Text(
-                                  '₱${_fmt(c['amount'])}')),
+                              DataCell(Text(loanCode)),
+                              DataCell(Text(borrowerName)),
+                              DataCell(Text(riderName)),
+                              // FIX: collected_amount (not 'amount')
                               DataCell(
-                                  Text(_fmtDate(c['collection_date']))),
+                                  Text('₱${_fmt(c['collected_amount'])}')),
+                              DataCell(
+                                  Text('₱${_fmt(c['target_amount'])}')),
+                              // FIX: completed_at or created_at date
+                              DataCell(Text(_fmtDate(
+                                  c['completed_at'] ?? c['created_at']))),
+                              // FIX: collection_status (not 'status')
                               DataCell(_CollectionStatusBadge(
-                                  status: c['status'] ?? 'collected')),
+                                  status:
+                                      c['collection_status'] ?? 'pending')),
                             ]);
                           }).toList(),
                         ),
@@ -250,6 +323,8 @@ class CollectionsPage extends ConsumerWidget {
     }
   }
 }
+
+// ── Summary Card ──────────────────────────────────────────────────────────────
 
 class _SummaryCard extends StatelessWidget {
   final String label, value;
@@ -281,8 +356,8 @@ class _SummaryCard extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 18, fontWeight: FontWeight.bold)),
             Text(label,
-                style:
-                    const TextStyle(color: Colors.grey, fontSize: 12)),
+                style: const TextStyle(
+                    color: Colors.grey, fontSize: 12)),
           ]),
         ]),
       ),
@@ -290,22 +365,32 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
+// ── Status Badge ──────────────────────────────────────────────────────────────
+// FIX: Updated to use correct collection_status enum values from schema
+
 class _CollectionStatusBadge extends StatelessWidget {
   final String status;
   const _CollectionStatusBadge({required this.status});
 
   @override
   Widget build(BuildContext context) {
+    // FIX: Map schema enum values (pending/assigned/collecting/completed/failed)
     Color c;
-    switch (status) {
-      case 'collected':
+    switch (status.toLowerCase()) {
+      case 'completed':
         c = Colors.green;
         break;
-      case 'partial':
+      case 'collecting':
+        c = Colors.blue;
+        break;
+      case 'assigned':
         c = Colors.orange;
         break;
-      default:
+      case 'failed':
         c = Colors.red;
+        break;
+      default: // pending
+        c = Colors.grey;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

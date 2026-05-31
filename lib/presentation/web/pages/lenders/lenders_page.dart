@@ -1,19 +1,56 @@
+// ============================================================
+// FIX FILE: lib/presentation/web/pages/lenders/lenders_page.dart
+// ============================================================
+// BUG FIXED:
+//
+// PostgrestException: "column users.role does not exist" (code: 42703)
+//
+//   ROOT CAUSE: The original provider queried:
+//     .from('users').select().eq('role', 'lender')
+//   The 'users' table has NO 'role' column. Roles are stored in a
+//   separate 'roles' table and linked via 'role_id' (UUID FK).
+//   The 'role' string only appears at runtime after the RPC call in
+//   auth_provider.dart, but is NOT stored on the users row.
+//
+//   FIX: Query from the 'lenders' table instead. The 'lenders' table
+//   only contains lenders by definition. Join 'users!user_id(...)' to
+//   get user profile data.
+//
+// ADDITIONAL FIELD FIXES:
+//   • 'full_name'      → users has first_name + last_name (combined)
+//   • 'phone'          → users has phone_number
+//   • 'status'         → users has account_status
+//   • 'capital_amount' → NOT in schema; use monthly_income from lenders
+// ============================================================
+
 // lib/presentation/web/pages/lenders/lenders_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+// FIX: Query from 'lenders' (role-specific table), join with 'users'
 final lendersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final res = await Supabase.instance.client
-      .from('users')
-      .select()
-      .eq('role', 'lender')
+      .from('lenders')
+      .select(
+        'id, lender_code, monthly_income, credit_score, risk_level, '
+        'is_blacklisted, created_at, '
+        'users!user_id(id, first_name, last_name, email, phone_number, account_status)',
+      )
       .order('created_at', ascending: false);
   return List<Map<String, dynamic>>.from(res);
 });
 
 final lenderSearchProvider = StateProvider<String>((ref) => '');
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+String _fullName(Map<String, dynamic>? u) {
+  if (u == null) return '-';
+  final f = u['first_name'] as String? ?? '';
+  final l = u['last_name'] as String? ?? '';
+  return '$f $l'.trim().isEmpty ? '-' : '$f $l'.trim();
+}
 
 class LendersPage extends ConsumerWidget {
   const LendersPage({super.key});
@@ -32,7 +69,9 @@ class LendersPage extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Text('Lenders',
                       style: Theme.of(context)
                           .textTheme
@@ -60,8 +99,8 @@ class LendersPage extends ConsumerWidget {
               decoration: InputDecoration(
                 hintText: 'Search lenders...',
                 prefixIcon: const Icon(Icons.search),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10)),
                 filled: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -79,9 +118,9 @@ class LendersPage extends ConsumerWidget {
                 error: (e, _) => Center(child: Text('Error: $e')),
                 data: (lenders) {
                   final filtered = lenders.where((l) {
+                    final u = l['users'] as Map<String, dynamic>? ?? {};
                     final q =
-                        '${l['full_name'] ?? ''} ${l['email'] ?? ''}'
-                            .toLowerCase();
+                        '${_fullName(u)} ${u['email'] ?? ''}'.toLowerCase();
                     return q.contains(search.toLowerCase());
                   }).toList();
 
@@ -111,35 +150,46 @@ class LendersPage extends ConsumerWidget {
                                   DataColumn(label: Text('Name')),
                                   DataColumn(label: Text('Email')),
                                   DataColumn(label: Text('Phone')),
-                                  DataColumn(label: Text('Capital (₱)')),
+                                  // FIX: monthly_income instead of capital_amount
+                                  DataColumn(
+                                      label: Text('Monthly Income (₱)')),
                                   DataColumn(label: Text('Status')),
                                   DataColumn(label: Text('Actions')),
                                 ],
                                 rows: filtered.map((l) {
+                                  final u = l['users'] as Map<String,
+                                          dynamic>? ??
+                                      {};
+                                  // FIX: account_status (not 'status')
                                   final active =
-                                      (l['status'] ?? 'active') == 'active';
+                                      (u['account_status'] ?? 'active') ==
+                                          'active';
+                                  final name = _fullName(u);
                                   return DataRow(cells: [
                                     DataCell(Row(children: [
                                       CircleAvatar(
                                         radius: 16,
                                         backgroundColor:
-                                            Colors.purple.withValues(alpha: 0.1),
+                                            Colors.purple.withValues(
+                                                alpha: 0.1),
                                         child: Text(
-                                          (l['full_name'] as String? ??
-                                                  'L')[0]
-                                              .toUpperCase(),
+                                          name.isEmpty
+                                              ? 'L'
+                                              : name[0].toUpperCase(),
                                           style: const TextStyle(
                                               color: Colors.purple,
                                               fontSize: 12),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      Text(l['full_name'] ?? '-'),
+                                      Text(name),
                                     ])),
-                                    DataCell(Text(l['email'] ?? '-')),
-                                    DataCell(Text(l['phone'] ?? '-')),
+                                    DataCell(Text(u['email'] ?? '-')),
+                                    // FIX: phone_number (not 'phone')
+                                    DataCell(Text(u['phone_number'] ?? '-')),
+                                    // FIX: monthly_income from lenders row
                                     DataCell(Text(
-                                        '₱${_fmt(l['capital_amount'])}')),
+                                        '₱${_fmt(l['monthly_income'])}')),
                                     DataCell(_Badge(active: active)),
                                     DataCell(Row(children: [
                                       IconButton(
@@ -159,13 +209,17 @@ class LendersPage extends ConsumerWidget {
                                               : Colors.green,
                                         ),
                                         onPressed: () async {
+                                          final userId =
+                                              u['id'] as String?;
+                                          if (userId == null) return;
+                                          // FIX: update account_status on users table
                                           await Supabase.instance.client
                                               .from('users')
                                               .update({
-                                            'status': active
-                                                ? 'inactive'
+                                            'account_status': active
+                                                ? 'suspended'
                                                 : 'active'
-                                          }).eq('id', l['id']);
+                                          }).eq('id', userId);
                                           ref.invalidate(lendersProvider);
                                         },
                                       ),
@@ -200,6 +254,11 @@ class LendersPage extends ConsumerWidget {
   }
 }
 
+// ── Edit Dialog ───────────────────────────────────────────────────────────────
+// NOTE: New lender creation requires many required fields (emergency contact,
+//       income source, etc.) that should be handled via the mobile registration
+//       flow. This dialog handles editing existing lender contact info only.
+
 class _LenderDialog extends StatefulWidget {
   final Map<String, dynamic>? lender;
   final VoidCallback onSaved;
@@ -211,22 +270,28 @@ class _LenderDialog extends StatefulWidget {
 
 class _LenderDialogState extends State<_LenderDialog> {
   final _key = GlobalKey<FormState>();
-  late final _name =
-      TextEditingController(text: widget.lender?['full_name'] ?? '');
-  late final _email =
-      TextEditingController(text: widget.lender?['email'] ?? '');
-  late final _phone =
-      TextEditingController(text: widget.lender?['phone'] ?? '');
-  late final _capital =
-      TextEditingController(text: widget.lender?['capital_amount']?.toString() ?? '');
+  late final TextEditingController _firstName;
+  late final TextEditingController _lastName;
+  late final TextEditingController _email;
+  late final TextEditingController _phone;
   bool _loading = false;
 
   @override
+  void initState() {
+    super.initState();
+    final u = widget.lender?['users'] as Map<String, dynamic>? ?? {};
+    _firstName = TextEditingController(text: u['first_name'] ?? '');
+    _lastName = TextEditingController(text: u['last_name'] ?? '');
+    _email = TextEditingController(text: u['email'] ?? '');
+    _phone = TextEditingController(text: u['phone_number'] ?? '');
+  }
+
+  @override
   void dispose() {
-    _name.dispose();
+    _firstName.dispose();
+    _lastName.dispose();
     _email.dispose();
     _phone.dispose();
-    _capital.dispose();
     super.dispose();
   }
 
@@ -234,25 +299,17 @@ class _LenderDialogState extends State<_LenderDialog> {
     if (!_key.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final data = {
-        'full_name': _name.text.trim(),
-        'email': _email.text.trim(),
-        'phone': _phone.text.trim(),
-        'capital_amount': double.tryParse(_capital.text.trim()) ?? 0,
-        'role': 'lender',
-      };
-      if (widget.lender != null) {
-        await Supabase.instance.client
-            .from('users')
-            .update(data)
-            .eq('id', widget.lender!['id']);
-      } else {
-        await Supabase.instance.client.auth.signUp(
-          email: _email.text.trim(),
-          password: 'Lender@1234',
-          data: data,
-        );
+      final u = widget.lender?['users'] as Map<String, dynamic>? ?? {};
+      final userId = u['id'] as String?;
+      if (userId == null) {
+        throw Exception('Cannot edit: user record not found.');
       }
+      // FIX: update correct user fields
+      await Supabase.instance.client.from('users').update({
+        'first_name': _firstName.text.trim(),
+        'last_name': _lastName.text.trim(),
+        'phone_number': _phone.text.trim(),
+      }).eq('id', userId);
       if (mounted) {
         Navigator.pop(context);
         widget.onSaved();
@@ -269,8 +326,9 @@ class _LenderDialogState extends State<_LenderDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = widget.lender != null;
     return AlertDialog(
-      title: Text(widget.lender != null ? 'Edit Lender' : 'Add Lender'),
+      title: Text(isEdit ? 'Edit Lender' : 'Add Lender'),
       content: Form(
         key: _key,
         child: SizedBox(
@@ -278,27 +336,43 @@ class _LenderDialogState extends State<_LenderDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (!isEdit)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'New lenders register via the mobile app. '
+                      'Use this dialog only to edit existing lender contact info.',
+                      style: TextStyle(fontSize: 12, color: Colors.amber),
+                    ),
+                  ),
+                ),
               TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Full Name'),
-                  validator: (v) => v!.isEmpty ? 'Required' : null),
+                  controller: _firstName,
+                  decoration: const InputDecoration(labelText: 'First Name'),
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
+                  readOnly: !isEdit),
+              const SizedBox(height: 12),
+              TextFormField(
+                  controller: _lastName,
+                  decoration: const InputDecoration(labelText: 'Last Name'),
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
+                  readOnly: !isEdit),
               const SizedBox(height: 12),
               TextFormField(
                   controller: _email,
                   decoration: const InputDecoration(labelText: 'Email'),
-                  readOnly: widget.lender != null,
-                  validator: (v) =>
-                      v!.contains('@') ? null : 'Valid email required'),
+                  readOnly: true),
               const SizedBox(height: 12),
               TextFormField(
                   controller: _phone,
-                  decoration: const InputDecoration(labelText: 'Phone')),
-              const SizedBox(height: 12),
-              TextFormField(
-                  controller: _capital,
-                  decoration:
-                      const InputDecoration(labelText: 'Capital Amount (₱)'),
-                  keyboardType: TextInputType.number),
+                  decoration: const InputDecoration(labelText: 'Phone Number'),
+                  readOnly: !isEdit),
             ],
           ),
         ),
@@ -307,19 +381,22 @@ class _LenderDialogState extends State<_LenderDialog> {
         TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _loading ? null : _save,
-          child: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(widget.lender != null ? 'Save' : 'Add'),
-        ),
+        if (isEdit)
+          FilledButton(
+            onPressed: _loading ? null : _save,
+            child: _loading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Save'),
+          ),
       ],
     );
   }
 }
+
+// ── Badge ─────────────────────────────────────────────────────────────────────
 
 class _Badge extends StatelessWidget {
   final bool active;

@@ -1,3 +1,37 @@
+// ============================================================
+// FIX FILE: lib/presentation/web/pages/settings/settings_page.dart
+// ============================================================
+// BUGS FIXED:
+//
+// BUG 1 — "Page not found: GoException: no routes for location:
+//   /settings/audit-logs"
+//
+//   ROOT CAUSE: The Audit Logs tab button called:
+//     context.go('/settings/audit-logs')
+//   But the GoRouter in app_router.dart registers the route as:
+//     AppConstants.routeWebAuditLogs = '/web/audit-logs'
+//   There is no '/settings/audit-logs' route defined anywhere.
+//
+//   FIX: Change to:
+//     context.go(AppConstants.routeWebAuditLogs)
+//   which resolves to '/web/audit-logs' — the correctly registered route.
+//
+// BUG 2 — Settings page content overflows ("BOTTOM OVERFLOWED BY 51 PIXELS")
+//
+//   ROOT CAUSE: The Expanded widget wrapping the profile/security/system
+//   tabs contains a Card whose Column children can overflow the available
+//   vertical space, especially on smaller window heights.
+//
+//   FIX: Wrap each tab's Card/content in a SingleChildScrollView so the
+//   content scrolls instead of overflowing.
+//
+// BUG 3 — Profile tab displays 'role' from raw DB row, but 'users' table
+//   has NO 'role' column (it's 'role_id'). Shows '-' or crashes.
+//
+//   FIX: settingsProfileProvider now also fetches role via RPC, same as
+//   auth_provider. The profile badge now shows the resolved role string.
+// ============================================================
+
 // lib/presentation/web/pages/settings/settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,16 +39,41 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
+import '../../../../providers/theme_provider.dart';
+
 final settingsProfileProvider =
     FutureProvider<Map<String, dynamic>>((ref) async {
-  final uid = Supabase.instance.client.auth.currentUser?.id;
+  final supabase = Supabase.instance.client;
+  final uid = supabase.auth.currentUser?.id;
   if (uid == null) return {};
-  final res = await Supabase.instance.client
+
+  final res = await supabase
       .from('users')
-      .select()
-      .eq('id', uid)
+      .select('id, first_name, last_name, email, phone_number, account_status, role_id')
+      .eq('auth_id', uid)
       .maybeSingle();
-  return res ?? {};
+
+  if (res == null) return {};
+
+  // FIX: role is not stored on users row — fetch via SECURITY DEFINER RPC
+  // same as auth_provider to avoid "column users.role does not exist"
+  String role = '';
+  try {
+    role = await supabase
+        .rpc('get_user_role')
+        .then((v) => (v as String?) ?? '');
+  } catch (_) {}
+
+  final firstName = res['first_name'] as String? ?? '';
+  final lastName = res['last_name'] as String? ?? '';
+
+  return {
+    ...res,
+    'role': role,
+    'full_name': '$firstName $lastName'.trim(),
+    'email': res['email'] ?? '',
+  };
 });
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -77,15 +136,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       icon: Icons.tune,
                       selected: _tab == 2,
                       onTap: () => setState(() => _tab = 2)),
+                  // FIX: use AppConstants.routeWebAuditLogs ('/web/audit-logs')
+                  // NOT '/settings/audit-logs' which has no registered route
                   _TabBtn(
                       label: 'Audit Logs',
                       icon: Icons.history,
                       selected: _tab == 3,
-                      onTap: () => context.go('/settings/audit-logs')),
+                      onTap: () =>
+                          context.go(AppConstants.routeWebAuditLogs)),
                 ],
               ),
             ).animate().fadeIn(duration: 300.ms, delay: 100.ms),
             const SizedBox(height: 24),
+            // FIX: Wrap in Expanded + scroll so content never overflows
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
@@ -114,22 +177,25 @@ class _ProfileTab extends ConsumerStatefulWidget {
 
 class _ProfileTabState extends ConsumerState<_ProfileTab> {
   final _key = GlobalKey<FormState>();
-  final _name = TextEditingController();
+  final _firstName = TextEditingController();
+  final _lastName = TextEditingController();
   final _phone = TextEditingController();
   bool _saving = false;
   bool _loaded = false;
 
   @override
   void dispose() {
-    _name.dispose();
+    _firstName.dispose();
+    _lastName.dispose();
     _phone.dispose();
     super.dispose();
   }
 
   void _load(Map<String, dynamic> p) {
     if (!_loaded) {
-      _name.text = p['full_name'] ?? '';
-      _phone.text = p['phone'] ?? '';
+      _firstName.text = p['first_name'] ?? '';
+      _lastName.text = p['last_name'] ?? '';
+      _phone.text = p['phone_number'] ?? '';
       _loaded = true;
     }
   }
@@ -141,9 +207,10 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
       final uid = Supabase.instance.client.auth.currentUser?.id;
       if (uid == null) return;
       await Supabase.instance.client.from('users').update({
-        'full_name': _name.text.trim(),
-        'phone': _phone.text.trim(),
-      }).eq('id', uid);
+        'first_name': _firstName.text.trim(),
+        'last_name': _lastName.text.trim(),
+        'phone_number': _phone.text.trim(),
+      }).eq('auth_id', uid);
       ref.invalidate(settingsProfileProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -167,108 +234,131 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
       error: (e, _) => Center(child: Text('Error: $e')),
       data: (p) {
         _load(p);
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade200)),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _key,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Profile Information',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-                  Row(children: [
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.1),
-                      child: Text(
-                        (p['full_name'] as String? ?? 'A')[0].toUpperCase(),
-                        style: TextStyle(
-                            fontSize: 28,
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(p['full_name'] ?? '-',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16)),
-                      Text(p['email'] ?? '-',
-                          style: const TextStyle(color: Colors.grey)),
-                      Container(
-                        margin: const EdgeInsets.only(top: 4),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
+        // FIX: Wrap in SingleChildScrollView to prevent overflow
+        return SingleChildScrollView(
+          child: Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade200)),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _key,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Profile Information',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 20),
+                    Row(children: [
+                      CircleAvatar(
+                        radius: 36,
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.1),
                         child: Text(
-                          (p['role'] as String? ?? 'admin').toUpperCase(),
+                          // FIX: first_name initial (no full_name column)
+                          ((p['first_name'] as String?) ?? 'A')
+                              .isNotEmpty
+                              ? (p['first_name'] as String)[0].toUpperCase()
+                              : 'A',
                           style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 28,
                               color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w600),
+                              fontWeight: FontWeight.bold),
                         ),
                       ),
-                    ]),
-                  ]),
-                  const Divider(height: 32),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 500),
-                    child: Column(children: [
-                      TextFormField(
-                        controller: _name,
-                        decoration:
-                            const InputDecoration(labelText: 'Full Name'),
-                        validator: (v) => v!.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        initialValue: p['email'] ?? '',
-                        decoration:
-                            const InputDecoration(labelText: 'Email Address'),
-                        readOnly: true,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _phone,
-                        decoration:
-                            const InputDecoration(labelText: 'Phone Number'),
-                        keyboardType: TextInputType.phone,
-                      ),
-                      const SizedBox(height: 24),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: FilledButton(
-                          onPressed: _saving ? null : _save,
-                          child: _saving
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('Save Changes'),
+                      const SizedBox(width: 16),
+                      Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        // FIX: display full_name (computed in provider)
+                        Text(p['full_name']?.toString().isNotEmpty == true
+                            ? p['full_name']
+                            : '-',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16)),
+                        Text(p['email'] ?? '-',
+                            style: const TextStyle(color: Colors.grey)),
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          // FIX: 'role' now resolved via RPC in provider
+                          child: Text(
+                            (p['role'] as String? ?? 'admin').toUpperCase(),
+                            style: TextStyle(
+                                fontSize: 11,
+                                color:
+                                    Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600),
+                          ),
                         ),
-                      ),
+                      ]),
                     ]),
-                  ),
-                ],
+                    const Divider(height: 32),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 500),
+                      child: Column(children: [
+                        TextFormField(
+                          controller: _firstName,
+                          decoration:
+                              const InputDecoration(labelText: 'First Name'),
+                          validator: (v) => v!.isEmpty ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _lastName,
+                          decoration:
+                              const InputDecoration(labelText: 'Last Name'),
+                          validator: (v) => v!.isEmpty ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          initialValue: p['email'] ?? '',
+                          decoration:
+                              const InputDecoration(labelText: 'Email Address'),
+                          readOnly: true,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _phone,
+                          decoration:
+                              // FIX: phone_number (not 'phone')
+                              const InputDecoration(labelText: 'Phone Number'),
+                          keyboardType: TextInputType.phone,
+                        ),
+                        const SizedBox(height: 24),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: FilledButton(
+                            onPressed: _saving ? null : _save,
+                            child: _saving
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))
+                                : const Text('Save Changes'),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -330,86 +420,89 @@ class _SecurityTabState extends ConsumerState<_SecurityTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.grey.shade200)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: Form(
-            key: _key,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Change Password',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _currentPw,
-                  obscureText: _obscureCurrent,
-                  decoration: InputDecoration(
-                    labelText: 'Current Password',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureCurrent
-                          ? Icons.visibility_off
-                          : Icons.visibility),
-                      onPressed: () => setState(
-                          () => _obscureCurrent = !_obscureCurrent),
+    // FIX: SingleChildScrollView prevents overflow on small screens
+    return SingleChildScrollView(
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Form(
+              key: _key,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Change Password',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _currentPw,
+                    obscureText: _obscureCurrent,
+                    decoration: InputDecoration(
+                      labelText: 'Current Password',
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureCurrent
+                            ? Icons.visibility_off
+                            : Icons.visibility),
+                        onPressed: () => setState(
+                            () => _obscureCurrent = !_obscureCurrent),
+                      ),
                     ),
+                    validator: (v) => v!.isEmpty ? 'Required' : null,
                   ),
-                  validator: (v) => v!.isEmpty ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _newPw,
-                  obscureText: _obscureNew,
-                  decoration: InputDecoration(
-                    labelText: 'New Password',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureNew
-                          ? Icons.visibility_off
-                          : Icons.visibility),
-                      onPressed: () =>
-                          setState(() => _obscureNew = !_obscureNew),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _newPw,
+                    obscureText: _obscureNew,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureNew
+                            ? Icons.visibility_off
+                            : Icons.visibility),
+                        onPressed: () =>
+                            setState(() => _obscureNew = !_obscureNew),
+                      ),
                     ),
+                    validator: (v) =>
+                        v!.length < 8 ? 'Min 8 characters' : null,
                   ),
-                  validator: (v) =>
-                      v!.length < 8 ? 'Min 8 characters' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _confirmPw,
-                  obscureText: _obscureConfirm,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm New Password',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirm
-                          ? Icons.visibility_off
-                          : Icons.visibility),
-                      onPressed: () => setState(
-                          () => _obscureConfirm = !_obscureConfirm),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _confirmPw,
+                    obscureText: _obscureConfirm,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm New Password',
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirm
+                            ? Icons.visibility_off
+                            : Icons.visibility),
+                        onPressed: () => setState(
+                            () => _obscureConfirm = !_obscureConfirm),
+                      ),
                     ),
+                    validator: (v) =>
+                        v != _newPw.text ? 'Passwords do not match' : null,
                   ),
-                  validator: (v) =>
-                      v != _newPw.text ? 'Passwords do not match' : null,
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _saving ? null : _changePassword,
-                  child: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Change Password'),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _saving ? null : _changePassword,
+                    child: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Change Password'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -425,49 +518,59 @@ class _SystemTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.grey.shade200)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('System Configuration',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            const _SettingsTile(
-              icon: Icons.percent,
-              title: 'Default Interest Rate',
-              subtitle: 'Set the default loan interest rate',
-              trailing: Text('5%',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            const _SettingsTile(
-              icon: Icons.calendar_today,
-              title: 'Default Loan Term',
-              subtitle: 'Default repayment period',
-              trailing: Text('30 days',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            _SettingsTile(
-              icon: Icons.notifications,
-              title: 'Push Notifications',
-              subtitle: 'Enable push notifications for riders',
-              trailing: Switch(value: true, onChanged: (_) {}),
-            ),
-            _SettingsTile(
-              icon: Icons.dark_mode,
-              title: 'Dark Mode',
-              subtitle: 'Toggle dark/light theme',
-              trailing: Switch(value: false, onChanged: (_) {}),
-            ),
-          ],
+    final themeMode = ref.watch(themeProvider);
+    final isDark = themeMode == ThemeMode.dark;
+
+    // FIX: SingleChildScrollView prevents overflow on small screens
+    return SingleChildScrollView(
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('System Configuration',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              const _SettingsTile(
+                icon: Icons.percent,
+                title: 'Default Interest Rate',
+                subtitle: 'Set the default loan interest rate',
+                trailing: Text('5%',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              const _SettingsTile(
+                icon: Icons.calendar_today,
+                title: 'Default Loan Term',
+                subtitle: 'Default repayment period',
+                trailing: Text('30 days',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              _SettingsTile(
+                icon: Icons.notifications,
+                title: 'Push Notifications',
+                subtitle: 'Enable push notifications for riders',
+                trailing: Switch(value: true, onChanged: (_) {}),
+              ),
+              // FIX: Dark mode switch now actually works via themeProvider
+              _SettingsTile(
+                icon: Icons.dark_mode,
+                title: 'Dark Mode',
+                subtitle: 'Toggle dark/light theme',
+                trailing: Switch(
+                  value: isDark,
+                  onChanged: (_) => ref.read(themeProvider.notifier).toggle(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

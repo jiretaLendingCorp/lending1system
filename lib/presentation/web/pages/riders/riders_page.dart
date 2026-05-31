@@ -1,19 +1,63 @@
+// ============================================================
+// FIX FILE: lib/presentation/web/pages/riders/riders_page.dart
+// ============================================================
+// BUGS FIXED:
+//
+// BUG 1 — PostgrestException: "Could not embed because more than one
+//   relationship was found for 'users' and 'loans'"
+//   ROOT CAUSE: .select('*, loans(count)') on the 'users' table is
+//   ambiguous. The 'loans' table has FOUR FK columns pointing to 'users':
+//   reviewed_by, approved_by, rejected_by, archived_by. PostgREST cannot
+//   determine which FK to follow without an explicit hint.
+//   FIX: Remove the loans(count) embed entirely. Query from the 'riders'
+//   table instead and join to 'users' via the user_id FK.
+//
+// BUG 2 — .eq('role', 'rider') fails because the 'users' table has NO
+//   'role' column. Role is stored in a separate 'roles' table, linked via
+//   the 'role_id' FK. The DART model returned from auth_provider adds
+//   'role' at runtime via RPC but the raw DB row does not have it.
+//   FIX: Query from the 'riders' table (which already represents only
+//   riders by definition) and join 'users!user_id(...)'.
+//
+// BUG 3 — Field name mismatches (users table schema vs page assumptions):
+//   • 'full_name' → NOT a column; use first_name + last_name
+//   • 'phone'     → NOT a column; use phone_number
+//   • 'status'    → NOT a column; use account_status (active/suspended/…)
+//   • 'area'      → NOT a column on riders; removed (not in schema)
+//   FIX: All field accesses updated to match schema.sql exactly.
+// ============================================================
+
 // lib/presentation/web/pages/riders/riders_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+// ── Provider ──────────────────────────────────────────────────────────────────
+// FIX: Query from 'riders' table (no role filter needed — only riders exist here)
+//      Join with 'users' using the user_id FK.
+//      Remove loans(count) — ambiguous FK relationship.
 final ridersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final res = await Supabase.instance.client
-      .from('users')
-      .select('*, loans(count)')
-      .eq('role', 'rider')
+      .from('riders')
+      .select(
+        'id, rider_code, is_available, total_collections, total_amount_col, '
+        'created_at, '
+        'users!user_id(id, first_name, last_name, email, phone_number, account_status)',
+      )
       .order('created_at', ascending: false);
   return List<Map<String, dynamic>>.from(res);
 });
 
 final riderSearchProvider = StateProvider<String>((ref) => '');
+
+// ── Helper: build full name from first/last ────────────────────────────────
+String _fullName(Map<String, dynamic>? u) {
+  if (u == null) return '-';
+  final f = u['first_name'] as String? ?? '';
+  final l = u['last_name'] as String? ?? '';
+  return '$f $l'.trim().isEmpty ? '-' : '$f $l'.trim();
+}
 
 class RidersPage extends ConsumerWidget {
   const RidersPage({super.key});
@@ -87,9 +131,9 @@ class RidersPage extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
                   _StatTile(
-                    label: 'Active',
+                    label: 'Available',
                     value: riders
-                        .where((r) => r['status'] == 'active')
+                        .where((r) => r['is_available'] == true)
                         .length
                         .toString(),
                     icon: Icons.check_circle,
@@ -97,9 +141,9 @@ class RidersPage extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
                   _StatTile(
-                    label: 'Inactive',
+                    label: 'Unavailable',
                     value: riders
-                        .where((r) => r['status'] != 'active')
+                        .where((r) => r['is_available'] != true)
                         .length
                         .toString(),
                     icon: Icons.block,
@@ -119,9 +163,9 @@ class RidersPage extends ConsumerWidget {
                 error: (e, _) => Center(child: Text('Error: $e')),
                 data: (riders) {
                   final filtered = riders.where((r) {
-                    final q =
-                        '${r['full_name'] ?? ''} ${r['email'] ?? ''}'
-                            .toLowerCase();
+                    final u = r['users'] as Map<String, dynamic>?;
+                    final q = '${_fullName(u)} ${u?['email'] ?? ''}'
+                        .toLowerCase();
                     return q.contains(search.toLowerCase());
                   }).toList();
 
@@ -150,13 +194,18 @@ class RidersPage extends ConsumerWidget {
                             DataColumn(label: Text('Rider')),
                             DataColumn(label: Text('Email')),
                             DataColumn(label: Text('Phone')),
-                            DataColumn(label: Text('Area')),
+                            DataColumn(label: Text('Code')),
                             DataColumn(label: Text('Status')),
                             DataColumn(label: Text('Actions')),
                           ],
                           rows: filtered.map((r) {
+                            final u =
+                                r['users'] as Map<String, dynamic>? ?? {};
+                            // FIX: use account_status (not 'status')
                             final isActive =
-                                (r['status'] ?? 'active') == 'active';
+                                (u['account_status'] ?? 'active') ==
+                                    'active';
+                            final name = _fullName(u);
                             return DataRow(cells: [
                               DataCell(Row(children: [
                                 CircleAvatar(
@@ -164,20 +213,22 @@ class RidersPage extends ConsumerWidget {
                                   backgroundColor: Colors.blue
                                       .withValues(alpha: 0.1),
                                   child: Text(
-                                    (r['full_name'] as String? ?? 'R')[0]
-                                        .toUpperCase(),
+                                    name.isEmpty ? 'R' : name[0].toUpperCase(),
                                     style: const TextStyle(
                                         color: Colors.blue, fontSize: 12),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(r['full_name'] ?? '-'),
+                                Text(name),
                               ])),
-                              DataCell(Text(r['email'] ?? '-')),
-                              DataCell(Text(r['phone'] ?? '-')),
-                              DataCell(Text(r['area'] ?? '-')),
-                              DataCell(_StatusBadge(
-                                  active: isActive)),
+                              // FIX: email is on users sub-object
+                              DataCell(Text(u['email'] ?? '-')),
+                              // FIX: phone_number (not 'phone')
+                              DataCell(Text(u['phone_number'] ?? '-')),
+                              // FIX: use rider_code (schema has no 'area')
+                              DataCell(Text(r['rider_code'] ?? '-')),
+                              DataCell(
+                                  _StatusBadge(active: isActive)),
                               DataCell(Row(children: [
                                 IconButton(
                                   icon: const Icon(Icons.edit_outlined,
@@ -195,7 +246,8 @@ class RidersPage extends ConsumerWidget {
                                         ? Colors.orange
                                         : Colors.green,
                                   ),
-                                  onPressed: () => _toggleStatus(ref, r),
+                                  onPressed: () =>
+                                      _toggleStatus(ref, r, isActive),
                                 ),
                               ])),
                             ]);
@@ -213,12 +265,16 @@ class RidersPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _toggleStatus(WidgetRef ref, Map<String, dynamic> r) async {
-    final newStatus =
-        (r['status'] ?? 'active') == 'active' ? 'inactive' : 'active';
+  // FIX: toggle account_status on the 'users' sub-table
+  Future<void> _toggleStatus(
+      WidgetRef ref, Map<String, dynamic> r, bool currentlyActive) async {
+    final u = r['users'] as Map<String, dynamic>? ?? {};
+    final userId = u['id'] as String?;
+    if (userId == null) return;
+    final newStatus = currentlyActive ? 'suspended' : 'active';
     await Supabase.instance.client
         .from('users')
-        .update({'status': newStatus}).eq('id', r['id']);
+        .update({'account_status': newStatus}).eq('id', userId);
     ref.invalidate(ridersProvider);
   }
 
@@ -226,7 +282,7 @@ class RidersPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (_) =>
-          _RiderFormDialog(onSaved: () => ref.invalidate(ridersProvider)),
+          _RiderInfoDialog(onSaved: () => ref.invalidate(ridersProvider)),
     );
   }
 
@@ -234,39 +290,51 @@ class RidersPage extends ConsumerWidget {
       BuildContext context, WidgetRef ref, Map<String, dynamic> r) {
     showDialog(
       context: context,
-      builder: (_) => _RiderFormDialog(
+      builder: (_) => _RiderInfoDialog(
           rider: r, onSaved: () => ref.invalidate(ridersProvider)),
     );
   }
 }
 
-class _RiderFormDialog extends StatefulWidget {
+// ── Add / Edit Dialog ─────────────────────────────────────────────────────────
+// NOTE: Full rider creation requires many required fields (license, vehicle, etc.)
+//       This dialog handles editing existing rider user info only.
+//       New rider creation should go through the Employees page or a dedicated
+//       admin-only onboarding flow that fills all required schema fields.
+
+class _RiderInfoDialog extends StatefulWidget {
   final Map<String, dynamic>? rider;
   final VoidCallback onSaved;
-  const _RiderFormDialog({this.rider, required this.onSaved});
+  const _RiderInfoDialog({this.rider, required this.onSaved});
 
   @override
-  State<_RiderFormDialog> createState() => _RiderFormDialogState();
+  State<_RiderInfoDialog> createState() => _RiderInfoDialogState();
 }
 
-class _RiderFormDialogState extends State<_RiderFormDialog> {
+class _RiderInfoDialogState extends State<_RiderInfoDialog> {
   final _key = GlobalKey<FormState>();
-  late final _name =
-      TextEditingController(text: widget.rider?['full_name'] ?? '');
-  late final _email =
-      TextEditingController(text: widget.rider?['email'] ?? '');
-  late final _phone =
-      TextEditingController(text: widget.rider?['phone'] ?? '');
-  late final _area =
-      TextEditingController(text: widget.rider?['area'] ?? '');
+  late final TextEditingController _firstName;
+  late final TextEditingController _lastName;
+  late final TextEditingController _email;
+  late final TextEditingController _phone;
   bool _loading = false;
 
   @override
+  void initState() {
+    super.initState();
+    final u = widget.rider?['users'] as Map<String, dynamic>? ?? {};
+    _firstName = TextEditingController(text: u['first_name'] ?? '');
+    _lastName = TextEditingController(text: u['last_name'] ?? '');
+    _email = TextEditingController(text: u['email'] ?? '');
+    _phone = TextEditingController(text: u['phone_number'] ?? '');
+  }
+
+  @override
   void dispose() {
-    _name.dispose();
+    _firstName.dispose();
+    _lastName.dispose();
     _email.dispose();
     _phone.dispose();
-    _area.dispose();
     super.dispose();
   }
 
@@ -274,25 +342,17 @@ class _RiderFormDialogState extends State<_RiderFormDialog> {
     if (!_key.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final data = {
-        'full_name': _name.text.trim(),
-        'email': _email.text.trim(),
-        'phone': _phone.text.trim(),
-        'area': _area.text.trim(),
-        'role': 'rider',
-      };
-      if (widget.rider != null) {
-        await Supabase.instance.client
-            .from('users')
-            .update(data)
-            .eq('id', widget.rider!['id']);
-      } else {
-        await Supabase.instance.client.auth.signUp(
-          email: _email.text.trim(),
-          password: 'Rider@1234',
-          data: data,
-        );
+      final u = widget.rider?['users'] as Map<String, dynamic>? ?? {};
+      final userId = u['id'] as String?;
+      if (userId == null) {
+        throw Exception(
+            'Cannot edit: user record not found. Use the Employees page to add new riders.');
       }
+      await Supabase.instance.client.from('users').update({
+        'first_name': _firstName.text.trim(),
+        'last_name': _lastName.text.trim(),
+        'phone_number': _phone.text.trim(),
+      }).eq('id', userId);
       if (mounted) {
         Navigator.pop(context);
         widget.onSaved();
@@ -311,7 +371,7 @@ class _RiderFormDialogState extends State<_RiderFormDialog> {
   Widget build(BuildContext context) {
     final isEdit = widget.rider != null;
     return AlertDialog(
-      title: Text(isEdit ? 'Edit Rider' : 'Add Rider'),
+      title: Text(isEdit ? 'Edit Rider Info' : 'Add Rider'),
       content: Form(
         key: _key,
         child: SizedBox(
@@ -319,29 +379,46 @@ class _RiderFormDialogState extends State<_RiderFormDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (!isEdit)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'New riders must be created through the Employees '
+                      'management page (requires vehicle & license info).',
+                      style: TextStyle(fontSize: 12, color: Colors.amber),
+                    ),
+                  ),
+                ),
               TextFormField(
-                controller: _name,
-                decoration: const InputDecoration(labelText: 'Full Name'),
+                controller: _firstName,
+                decoration: const InputDecoration(labelText: 'First Name'),
                 validator: (v) => v!.isEmpty ? 'Required' : null,
+                readOnly: !isEdit,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _lastName,
+                decoration: const InputDecoration(labelText: 'Last Name'),
+                validator: (v) => v!.isEmpty ? 'Required' : null,
+                readOnly: !isEdit,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _email,
                 decoration: const InputDecoration(labelText: 'Email'),
-                readOnly: isEdit,
-                validator: (v) =>
-                    v!.contains('@') ? null : 'Valid email required',
+                readOnly: true,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _phone,
-                decoration: const InputDecoration(labelText: 'Phone'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _area,
-                decoration: const InputDecoration(
-                    labelText: 'Area / Route Assignment'),
+                decoration: const InputDecoration(labelText: 'Phone Number'),
+                readOnly: !isEdit,
               ),
             ],
           ),
@@ -351,19 +428,22 @@ class _RiderFormDialogState extends State<_RiderFormDialog> {
         TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _loading ? null : _save,
-          child: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(isEdit ? 'Save' : 'Add'),
-        ),
+        if (isEdit)
+          FilledButton(
+            onPressed: _loading ? null : _save,
+            child: _loading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Save'),
+          ),
       ],
     );
   }
 }
+
+// ── Stat Tile ─────────────────────────────────────────────────────────────────
 
 class _StatTile extends StatelessWidget {
   final String label;
@@ -409,6 +489,8 @@ class _StatTile extends StatelessWidget {
     );
   }
 }
+
+// ── Status Badge ──────────────────────────────────────────────────────────────
 
 class _StatusBadge extends StatelessWidget {
   final bool active;
