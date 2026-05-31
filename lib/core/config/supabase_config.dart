@@ -3,7 +3,7 @@
 // Dashboard → Settings → API
 
 class SupabaseConfig {
-  static const String supabaseUrl = 'https://yzwlblsqprgyztllclyx.supabase.co';
+  static const String supabaseUrl = 'https://xyhqvpbrxbgiduobkbhl.supabase.co';
   static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6d2xibHNxcHJneXp0bGxjbHl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMDc2OTMsImV4cCI6MjA5NTc4MzY5M30.cvNM15XwEQf5w1sQ0Z3NmqXuEOyqrcE4xDLT9ULjxUw';
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5aHF2cGJyeGJnaWR1b2JrYmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMzE3ODcsImV4cCI6MjA5NTgwNzc4N30.u9OXN9vScW9gEeCdHewQJoJRErwraDEIoIO63W3jLqs';
 }
