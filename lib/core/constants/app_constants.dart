@@ -12,8 +12,8 @@ class AppConstants {
 
   // ─── Supabase ─────────────────────────────────────────────
   // Replace with your actual Supabase project values
-  static const String supabaseUrl     = 'https://uawrrpzjniowawfrlzzo.supabase.co';
-  static const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVhd3JycHpqbmlvd2F3ZnJsenpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MjE2NjcsImV4cCI6MjA5MTk5NzY2N30.tN2BhnAp0AkMEYCTUdGszr2iUXiYd5rJ4SLTEfRfVPc';
+  static const String supabaseUrl     = 'https://xyhqvpbrxbgiduobkbhl.supabase.co';
+  static const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5aHF2cGJyeGJnaWR1b2JrYmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMzE3ODcsImV4cCI6MjA5NTgwNzc4N30.u9OXN9vScW9gEeCdHewQJoJRErwraDEIoIO63W3jLqs';
 
   // Edge Function base URL
   static String get edgeFunctionsUrl => '$supabaseUrl/functions/v1';
