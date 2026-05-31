@@ -50,7 +50,8 @@ final settingsProfileProvider =
 
   final res = await supabase
       .from('users')
-      .select('id, first_name, last_name, email, phone_number, account_status, role_id')
+      .select(
+          'id, first_name, last_name, email, phone_number, account_status, role_id')
       .eq('auth_id', uid)
       .maybeSingle();
 
@@ -60,9 +61,8 @@ final settingsProfileProvider =
   // same as auth_provider to avoid "column users.role does not exist"
   String role = '';
   try {
-    role = await supabase
-        .rpc('get_user_role')
-        .then((v) => (v as String?) ?? '');
+    role =
+        await supabase.rpc('get_user_role').then((v) => (v as String?) ?? '');
   } catch (_) {}
 
   final firstName = res['first_name'] as String? ?? '';
@@ -142,8 +142,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       label: 'Audit Logs',
                       icon: Icons.history,
                       selected: _tab == 3,
-                      onTap: () =>
-                          context.go(AppConstants.routeWebAuditLogs)),
+                      onTap: () => context.go(AppConstants.routeWebAuditLogs)),
                 ],
               ),
             ).animate().fadeIn(duration: 300.ms, delay: 100.ms),
@@ -263,8 +262,7 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
                             .withValues(alpha: 0.1),
                         child: Text(
                           // FIX: first_name initial (no full_name column)
-                          ((p['first_name'] as String?) ?? 'A')
-                              .isNotEmpty
+                          ((p['first_name'] as String?) ?? 'A').isNotEmpty
                               ? (p['first_name'] as String)[0].toUpperCase()
                               : 'A',
                           style: TextStyle(
@@ -277,37 +275,37 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
                       Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                        // FIX: display full_name (computed in provider)
-                        Text(p['full_name']?.toString().isNotEmpty == true
-                            ? p['full_name']
-                            : '-',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16)),
-                        Text(p['email'] ?? '-',
-                            style: const TextStyle(color: Colors.grey)),
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          // FIX: 'role' now resolved via RPC in provider
-                          child: Text(
-                            (p['role'] as String? ?? 'admin').toUpperCase(),
-                            style: TextStyle(
-                                fontSize: 11,
-                                color:
-                                    Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ]),
+                            // FIX: display full_name (computed in provider)
+                            Text(
+                                p['full_name']?.toString().isNotEmpty == true
+                                    ? p['full_name']
+                                    : '-',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(p['email'] ?? '-',
+                                style: const TextStyle(color: Colors.grey)),
+                            Container(
+                              margin: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              // FIX: 'role' now resolved via RPC in provider
+                              child: Text(
+                                (p['role'] as String? ?? 'admin').toUpperCase(),
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ]),
                     ]),
                     const Divider(height: 32),
                     ConstrainedBox(
@@ -451,8 +449,8 @@ class _SecurityTabState extends ConsumerState<_SecurityTab> {
                         icon: Icon(_obscureCurrent
                             ? Icons.visibility_off
                             : Icons.visibility),
-                        onPressed: () => setState(
-                            () => _obscureCurrent = !_obscureCurrent),
+                        onPressed: () =>
+                            setState(() => _obscureCurrent = !_obscureCurrent),
                       ),
                     ),
                     validator: (v) => v!.isEmpty ? 'Required' : null,
@@ -471,8 +469,7 @@ class _SecurityTabState extends ConsumerState<_SecurityTab> {
                             setState(() => _obscureNew = !_obscureNew),
                       ),
                     ),
-                    validator: (v) =>
-                        v!.length < 8 ? 'Min 8 characters' : null,
+                    validator: (v) => v!.length < 8 ? 'Min 8 characters' : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -484,8 +481,8 @@ class _SecurityTabState extends ConsumerState<_SecurityTab> {
                         icon: Icon(_obscureConfirm
                             ? Icons.visibility_off
                             : Icons.visibility),
-                        onPressed: () => setState(
-                            () => _obscureConfirm = !_obscureConfirm),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
                     ),
                     validator: (v) =>
@@ -518,7 +515,7 @@ class _SystemTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeProvider);
+    final themeMode = ref.watch(themeModeProvider);
     final isDark = themeMode == ThemeMode.dark;
 
     // FIX: SingleChildScrollView prevents overflow on small screens
@@ -543,8 +540,8 @@ class _SystemTab extends ConsumerWidget {
                 icon: Icons.percent,
                 title: 'Default Interest Rate',
                 subtitle: 'Set the default loan interest rate',
-                trailing: Text('5%',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing:
+                    Text('5%', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
               const _SettingsTile(
                 icon: Icons.calendar_today,
@@ -566,7 +563,8 @@ class _SystemTab extends ConsumerWidget {
                 subtitle: 'Toggle dark/light theme',
                 trailing: Switch(
                   value: isDark,
-                  onChanged: (_) => ref.read(themeProvider.notifier).toggle(),
+                  onChanged: (_) =>
+                      ref.read(themeModeProvider.notifier).toggleTheme(),
                 ),
               ),
             ],
@@ -607,15 +605,12 @@ class _SettingsTile extends StatelessWidget {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(fontWeight: FontWeight.w500)),
-                Text(subtitle,
-                    style:
-                        const TextStyle(color: Colors.grey, fontSize: 12)),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+            Text(subtitle,
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          ]),
         ),
         trailing,
       ]),
@@ -665,9 +660,7 @@ class _TabBtn extends StatelessWidget {
           Text(label,
               style: TextStyle(
                   fontSize: 13,
-                  fontWeight: selected
-                      ? FontWeight.w600
-                      : FontWeight.normal,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                   color: selected
                       ? Theme.of(context).colorScheme.primary
                       : Colors.grey)),
