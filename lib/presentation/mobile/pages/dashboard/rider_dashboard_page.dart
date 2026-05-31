@@ -1,45 +1,4 @@
 // lib/presentation/mobile/pages/dashboard/rider_dashboard_page.dart
-// ═══════════════════════════════════════════════════════════════════════════
-// FIX SUMMARY (Multiple Runtime Errors):
-//
-// BUG 1 — Wrong user lookup (runtime PostgREST 0 rows error):
-//   ORIGINAL: .eq('id', uid) where uid = Supabase auth UUID
-//   The 'users' table's PK 'id' is an app UUID; the Supabase auth UUID is
-//   stored in 'auth_id'. So .eq('id', uid) always returns 0 rows.
-//   FIX: .eq('auth_id', uid)
-//
-// BUG 2 — Wrong user name field (null name, avatar shows '?'):
-//   ORIGINAL: user['full_name'] — field doesn't exist in schema.
-//   Schema has 'first_name' + 'last_name' as separate columns.
-//   FIX: '${user['first_name']} ${user['last_name']}'
-//
-// BUG 3 — Wrong collections table columns (runtime DB error):
-//   ORIGINAL columns used: 'amount', 'status', 'collection_date',
-//     'loans(borrower_name, loan_number)'
-//   ACTUAL schema columns:  'collected_amount', 'collection_status',
-//     no 'collection_date' column, loans has 'loan_code' not 'loan_number',
-//     and 'borrower_name' doesn't exist (name is on the users table via lenders).
-//   FIX: Use correct column names from schema.sql.
-//       Use 'created_at' for date filtering (no collection_date column).
-//       Join lenders→users for name, or just use lender_id / loan_code.
-//
-// BUG 4 — Wrong CI table name (runtime: relation does not exist):
-//   ORIGINAL: .from('credit_investigations')
-//   ACTUAL schema table: 'ci_assignments'
-//   FIX: .from('ci_assignments'), with correct column names 'ci_status'
-//        and joined loan 'loan_code'.
-//
-// BUG 5 — Wrong route strings in Quick Actions (GoRouter 404):
-//   ORIGINAL used hardcoded strings like '/mobile/collections',
-//     '/mobile/ci', '/mobile/loans', '/mobile/profile', '/mobile/notifications'
-//   These routes don't exist in app_router.dart.
-//   FIX: Use AppConstants route constants.
-//
-// BUG 6 — riderDashboardProvider uses auth uid as rider_id for collections:
-//   'rider_id' in collections table references riders.id (app UUID),
-//   NOT the Supabase auth UUID. Must resolve auth_id → users.id → riders.id.
-//   FIX: First lookup the rider record by user_id.
-// ═══════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,56 +7,46 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
-// auth_provider import removed — rider dashboard uses Supabase directly
 
-// ── Provider ──────────────────────────────────────────────────
-
-final riderDashboardProvider =
-    FutureProvider<Map<String, dynamic>>((ref) async {
+final riderDashboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final authUid = Supabase.instance.client.auth.currentUser?.id;
   if (authUid == null) return {};
 
   final db = Supabase.instance.client;
 
-  // BUG 1 FIX: look up by auth_id, not id
   final user = await db
       .from('users')
       .select('id, first_name, last_name, profile_picture_url')
       .eq('auth_id', authUid)
       .maybeSingle();
 
-  if (user == null) return {'user': {}, 'todayCollections': [], 'todayTotal': 0.0, 'pendingCi': []};
+  if (user == null) {
+    return {'user': {}, 'recentCollections': [], 'pendingCi': [], 'totalCollected': 0.0};
+  }
 
   final userId = user['id'] as String;
 
-  // BUG 6 FIX: resolve users.id → riders.id
   final riderRecord = await db
       .from('riders')
-      .select('id')
+      .select('id, rider_code, vehicle_type, license_number')
       .eq('user_id', userId)
       .maybeSingle();
 
   if (riderRecord == null) {
     return {
-      'user':             user,
-      'todayCollections': <dynamic>[],
-      'todayTotal':       0.0,
-      'pendingCi':        <dynamic>[],
+      'user':               user,
+      'recentCollections':  <dynamic>[],
+      'pendingCi':          <dynamic>[],
+      'totalCollected':     0.0,
+      'riderInfo':          <String, dynamic>{},
     };
   }
 
   final riderId = riderRecord['id'] as String;
 
-  // Today's date range for filtering
-  final now        = DateTime.now();
-  final todayStart = DateTime(now.year, now.month, now.day).toIso8601String();
-  final todayEnd   = DateTime(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
-
-  // BUG 3 FIX: correct column names — collected_amount, collection_status
-  //           no collection_date → use created_at
-  //           loans join: loan_code (not loan_number, no borrower_name)
-  final allCollections = await db
+  final recentCollections = await db
       .from('collections')
       .select(
         'id, collected_amount, collection_status, created_at, '
@@ -105,22 +54,13 @@ final riderDashboardProvider =
       )
       .eq('rider_id', riderId)
       .order('created_at', ascending: false)
-      .limit(50);
+      .limit(10);
 
-  // BUG 3 FIX: filter today's collections using created_at
-  final todayCols = (allCollections as List).where((c) {
-    final createdAt = c['created_at'] as String? ?? '';
-    return createdAt.compareTo(todayStart) >= 0 &&
-        createdAt.compareTo(todayEnd) <= 0;
-  }).toList();
-
-  // BUG 3 FIX: sum using collected_amount
-  final totalToday = todayCols.fold<double>(
+  final totalCollected = (recentCollections as List).fold<double>(
     0,
     (s, c) => s + ((c['collected_amount'] as num?)?.toDouble() ?? 0),
   );
 
-  // BUG 4 FIX: correct table name 'ci_assignments' and column 'ci_status'
   final pendingCi = await db
       .from('ci_assignments')
       .select(
@@ -133,17 +73,13 @@ final riderDashboardProvider =
       .order('created_at', ascending: false);
 
   return {
-    'user':             user,
-    'todayCollections': todayCols,
-    'todayTotal':       totalToday,
-    'allCollections':   allCollections,
-    'pendingCi':        pendingCi,
+    'user':              user,
+    'riderInfo':         riderRecord,
+    'recentCollections': recentCollections,
+    'pendingCi':         pendingCi,
+    'totalCollected':    totalCollected,
   };
 });
-
-// ─────────────────────────────────────────────────────────────
-// Rider Dashboard Page
-// ─────────────────────────────────────────────────────────────
 
 class RiderDashboardPage extends ConsumerWidget {
   const RiderDashboardPage({super.key});
@@ -152,277 +88,102 @@ class RiderDashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncData = ref.watch(riderDashboardProvider);
     final now       = DateTime.now();
-    final greeting  = now.hour < 12
-        ? 'Good Morning'
-        : now.hour < 17
-            ? 'Good Afternoon'
-            : 'Good Evening';
+    final greeting  = now.hour < 12 ? 'Good Morning'
+        : now.hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: asyncData.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:   (e, _) => Center(child: Text('Error: $e')),
+        loading: () => const _RiderSkeleton(),
+        error:   (e, _) => _ErrorBody(message: e.toString()),
         data: (data) {
-          final user      = data['user'] as Map<String, dynamic>? ?? {};
-          final todayCols = data['todayCollections'] as List<dynamic>? ?? [];
-          final todayTotal= data['todayTotal'] as double? ?? 0;
-          final pendingCi = data['pendingCi'] as List<dynamic>? ?? [];
+          final user          = data['user'] as Map<String, dynamic>? ?? {};
+          final riderInfo     = data['riderInfo'] as Map<String, dynamic>? ?? {};
+          final recentCols    = data['recentCollections'] as List<dynamic>? ?? [];
+          final pendingCi     = data['pendingCi'] as List<dynamic>? ?? [];
+          final totalCollected= data['totalCollected'] as double? ?? 0;
 
-          // BUG 2 FIX: schema has first_name + last_name, not full_name
           final firstName = user['first_name'] as String? ?? '';
           final lastName  = user['last_name']  as String? ?? '';
-          final name      = '$firstName $lastName'.trim().isEmpty
-              ? 'Rider'
-              : '$firstName $lastName'.trim();
+          final name      = '$firstName $lastName'.trim().isEmpty ? 'Rider' : '$firstName $lastName'.trim();
+          final riderCode = riderInfo['rider_code'] as String? ?? '';
 
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(riderDashboardProvider),
             child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
               slivers: [
-                // ── App Bar ──────────────────────────────────
                 SliverAppBar(
-                  expandedHeight: 180,
-                  pinned: true,
+                  expandedHeight: 240,
+                  pinned:  true,
+                  stretch: true,
+                  backgroundColor: AppColors.primary700,
                   flexibleSpace: FlexibleSpaceBar(
-                    background: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Theme.of(context).colorScheme.primary,
-                            Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.75),
-                          ],
-                          begin: Alignment.topLeft,
-                          end:   Alignment.bottomRight,
-                        ),
-                      ),
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(children: [
-                                CircleAvatar(
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.2),
-                                  // BUG 2 FIX: use first letter of first_name
-                                  child: Text(
-                                    firstName.isNotEmpty
-                                        ? firstName[0].toUpperCase()
-                                        : 'R',
-                                    style: const TextStyle(
-                                        color:      Colors.white,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('$greeting,',
-                                        style: const TextStyle(
-                                            color:    Colors.white70,
-                                            fontSize: 13)),
-                                    Text(name,
-                                        style: const TextStyle(
-                                            color:      Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize:   17)),
-                                  ],
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(
-                                      Icons.notifications_outlined,
-                                      color: Colors.white),
-                                  // BUG 5 FIX: use AppConstants route constant
-                                  onPressed: () => context.go(
-                                      AppConstants.routeRiderNotifications),
-                                ),
-                              ]),
-                              const Spacer(),
-                              Text(
-                                DateFormat('EEEE, MMMM d, yyyy')
-                                    .format(DateTime.now()),
-                                style: const TextStyle(
-                                    color:    Colors.white70,
-                                    fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    stretchModes: const [StretchMode.zoomBackground],
+                    background: _RiderHeroHeader(
+                      name:         name,
+                      firstName:    firstName,
+                      riderCode:    riderCode,
+                      totalAmount:  totalCollected,
+                      greeting:     greeting,
                     ),
                   ),
+                  actions: [
+                    IconButton(
+                      icon:      const Icon(Icons.notifications_outlined, color: Colors.white),
+                      onPressed: () => context.go(AppConstants.routeRiderNotifications),
+                    ),
+                  ],
                 ),
 
                 SliverPadding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      // ── Today's Summary ──────────────────
-                      Row(children: [
-                        Expanded(
-                          child: _DashCard(
-                            title: "Today's Collections",
-                            value: '₱${NumberFormat('#,##0.00').format(todayTotal)}',
-                            icon:  Icons.payments_outlined,
-                            color: Colors.green,
-                            sub:   '${todayCols.length} transactions',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _DashCard(
-                            title: 'Pending CI',
-                            value: '${pendingCi.length}',
-                            icon:  Icons.assignment_outlined,
-                            color: Colors.orange,
-                            sub:   'To be visited',
-                          ),
-                        ),
-                      ]).animate().fadeIn(duration: 300.ms, delay: 100.ms),
+                      _CapabilityBanner(pendingCi: pendingCi.length, recentCols: recentCols.length),
 
                       const SizedBox(height: 20),
 
-                      // ── Quick Actions ─────────────────────
-                      Text('Quick Actions',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
+                      _QuickActions(),
 
-                      Row(children: [
-                        Expanded(
-                          child: _QuickActionBtn(
-                            icon:  Icons.add_circle_outline,
-                            label: 'Record\nCollection',
-                            color: Colors.blue,
-                            // BUG 5 FIX: use AppConstants route constant
-                            onTap: () => context.go(
-                                AppConstants.routeRiderAssignments),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _QuickActionBtn(
-                            icon:  Icons.search,
-                            label: 'CI\nReport',
-                            color: Colors.purple,
-                            // BUG 5 FIX: assignments route (CI is under assignments)
-                            onTap: () => context.go(
-                                AppConstants.routeRiderAssignments),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _QuickActionBtn(
-                            icon:  Icons.receipt_long,
-                            label: 'My\nProfile',
-                            color: Colors.teal,
-                            // BUG 5 FIX: use AppConstants route constant
-                            onTap: () => context.go(
-                                AppConstants.routeRiderProfile),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _QuickActionBtn(
-                            icon:  Icons.person_outline,
-                            label: 'Alerts',
-                            color: Colors.indigo,
-                            // BUG 5 FIX: use AppConstants route constant
-                            onTap: () => context.go(
-                                AppConstants.routeRiderNotifications),
-                          ),
-                        ),
-                      ]).animate().fadeIn(duration: 300.ms, delay: 200.ms),
+                      const SizedBox(height: 24),
 
-                      const SizedBox(height: 20),
-
-                      // ── Pending CI ────────────────────────
                       if (pendingCi.isNotEmpty) ...[
-                        Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Pending CI Visits',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(
-                                        fontWeight: FontWeight.bold)),
-                            TextButton(
-                              // BUG 5 FIX: use AppConstants route constant
-                              onPressed: () => context.go(
-                                  AppConstants.routeRiderAssignments),
-                              child: const Text('See All'),
-                            ),
-                          ],
+                        _SectionHeader(
+                          title:    'Pending CI Visits',
+                          count:    pendingCi.length,
+                          onSeeAll: () => context.go(AppConstants.routeRiderAssignments),
                         ),
-                        const SizedBox(height: 8),
-                        ...pendingCi
-                            .take(3)
-                            .map((ci) => _CiTile(ci: ci)),
+                        const SizedBox(height: 12),
+                        ...pendingCi.take(3).toList().asMap().entries.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _CiCard(ci: e.value),
+                          ).animate(delay: (60 * e.key).ms).fadeIn(duration: 350.ms).slideX(begin: 0.1),
+                        ),
                         const SizedBox(height: 20),
                       ],
 
-                      // ── Today's Collections ───────────────
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("Today's Collections",
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(
-                                      fontWeight: FontWeight.bold)),
-                          TextButton(
-                            // BUG 5 FIX: use AppConstants route constant
-                            onPressed: () => context.go(
-                                AppConstants.routeRiderAssignments),
-                            child: const Text('See All'),
-                          ),
-                        ],
+                      _SectionHeader(
+                        title:    'Recent Collections',
+                        count:    recentCols.length,
+                        onSeeAll: () => context.go(AppConstants.routeRiderAssignments),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
 
-                      if (todayCols.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                            borderRadius:
-                                BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.inbox_outlined,
-                                    size:  40,
-                                    color: Colors.grey),
-                                SizedBox(height: 8),
-                                Text(
-                                    'No collections recorded today',
-                                    style: TextStyle(
-                                        color: Colors.grey)),
-                              ],
-                            ),
-                          ),
+                      if (recentCols.isEmpty)
+                        const _EmptyState(
+                          icon:    Icons.payments_outlined,
+                          message: 'No collections recorded yet',
+                          sub:     'Start your route to record collections',
                         )
                       else
-                        ...todayCols
-                            .take(5)
-                            .map((c) => _CollectionTile(collection: c)),
+                        ...recentCols.take(5).toList().asMap().entries.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _CollectionCard(collection: e.value),
+                          ).animate(delay: (60 * e.key).ms).fadeIn(duration: 350.ms),
+                        ),
 
                       const SizedBox(height: 24),
                     ]),
@@ -437,52 +198,196 @@ class RiderDashboardPage extends ConsumerWidget {
   }
 }
 
-// ── Widgets ───────────────────────────────────────────────────
+class _RiderHeroHeader extends StatelessWidget {
+  final String name, firstName, riderCode, greeting;
+  final double totalAmount;
 
-class _DashCard extends StatelessWidget {
-  final String   title, value, sub;
-  final IconData icon;
-  final Color    color;
-
-  const _DashCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.sub,
+  const _RiderHeroHeader({
+    required this.name,
+    required this.firstName,
+    required this.riderCode,
+    required this.totalAmount,
+    required this.greeting,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(icon, color: color, size: 20),
-              const Spacer(),
-              Container(
-                width: 8, height: 8,
-                decoration:
-                    BoxDecoration(color: color, shape: BoxShape.circle),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary800, AppColors.primary600],
+          begin:  Alignment.topLeft,
+          end:    Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -30,
+            top:   -20,
+            child: Opacity(
+              opacity: 0.08,
+              child: Image.asset(
+                'assets/images/rider_hero.png',
+                width:  220,
+                height: 220,
+                errorBuilder: (_, __, ___) => const SizedBox(
+                  width: 220, height: 220,
+                  child: Icon(Icons.delivery_dining, size: 180, color: Colors.white),
+                ),
               ),
-            ]),
-            const SizedBox(height: 10),
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w500)),
-            Text(sub,
-                style: const TextStyle(
-                    fontSize: 11, color: Colors.grey)),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 48, height: 48,
+                        decoration: BoxDecoration(
+                          color:        Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                        ),
+                        child: Center(
+                          child: Text(
+                            firstName.isNotEmpty ? firstName[0].toUpperCase() : 'R',
+                            style: const TextStyle(
+                              color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(greeting, style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Poppins')),
+                            Text(name,     style: const TextStyle(color: Colors.white,   fontSize: 17, fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
+                          ],
+                        ),
+                      ),
+                      if (riderCode.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color:        Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(riderCode, style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
+                        ),
+                    ],
+                  ),
+
+                  const Spacer(),
+
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color:        Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Total Collected', style: TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'Poppins')),
+                              const SizedBox(height: 4),
+                              Text(
+                                '₱${NumberFormat('#,##0.00').format(totalAmount)}',
+                                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, fontFamily: 'Poppins'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color:        Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.payments_rounded, color: Colors.white, size: 22),
+                        ),
+                      ],
+                    ),
+                  ).animate(delay: 200.ms).fadeIn(duration: 400.ms).slideY(begin: 0.2),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CapabilityBanner extends StatelessWidget {
+  final int pendingCi, recentCols;
+  const _CapabilityBanner({required this.pendingCi, required this.recentCols});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color:        isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Your Responsibilities', style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _CapChip(icon: Icons.assignment_turned_in_rounded, label: 'CI Visits',    color: AppColors.warning,  count: pendingCi),
+              const SizedBox(width: 10),
+              _CapChip(icon: Icons.payments_rounded,             label: 'Collections',  color: AppColors.success,  count: recentCols),
+              const SizedBox(width: 10),
+              const _CapChip(icon: Icons.map_rounded,                  label: 'Route',        color: AppColors.primary500, count: null),
+            ],
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms);
+  }
+}
+
+class _CapChip extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final Color    color;
+  final int?     count;
+  const _CapChip({required this.icon, required this.label, required this.color, this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color:        color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border:       Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            if (count != null)
+              Text('$count', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w800, fontFamily: 'Poppins')),
+            Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600, fontFamily: 'Poppins'), textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -490,102 +395,92 @@ class _DashCard extends StatelessWidget {
   }
 }
 
-class _QuickActionBtn extends StatelessWidget {
-  final IconData     icon;
-  final String       label;
-  final Color        color;
-  final VoidCallback onTap;
-
-  const _QuickActionBtn({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
+class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            vertical: 16, horizontal: 8),
-        decoration: BoxDecoration(
-          color:        color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border:       Border.all(
-              color: color.withValues(alpha: 0.2)),
+    final actions = [
+      const _ActionDef('Collections', Icons.payments_rounded,            AppColors.success,    AppConstants.routeRiderAssignments),
+      const _ActionDef('CI Reports',  Icons.assignment_outlined,         AppColors.warning,    AppConstants.routeRiderAssignments),
+      const _ActionDef('Profile',     Icons.manage_accounts_rounded,     AppColors.accent,     AppConstants.routeRiderProfile),
+      const _ActionDef('Alerts',      Icons.notifications_active_rounded,AppColors.primary500, AppConstants.routeRiderNotifications),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Quick Actions', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        Row(
+          children: actions.asMap().entries.map((e) {
+            final a = e.value;
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: e.key < actions.length - 1 ? 10 : 0),
+                child: _ActionButton(def: a),
+              ).animate(delay: (60 * e.key).ms).fadeIn(duration: 350.ms).scale(begin: const Offset(0.8, 0.8), curve: Curves.easeOutBack),
+            );
+          }).toList(),
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: color, size: 26),
-          const SizedBox(height: 6),
-          Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize:   11,
-                  color:      color,
-                  fontWeight: FontWeight.w600)),
-        ]),
-      ),
+      ],
     );
   }
 }
 
-class _CiTile extends StatelessWidget {
-  final dynamic ci;
-  const _CiTile({required this.ci});
+class _ActionDef {
+  final String label, route;
+  final IconData icon;
+  final Color color;
+  const _ActionDef(this.label, this.icon, this.color, this.route);
+}
+
+class _ActionButton extends StatefulWidget {
+  final _ActionDef def;
+  const _ActionButton({required this.def});
+  @override State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double>   _scale;
+
+  @override void initState() {
+    super.initState();
+    _ctrl  = AnimationController(vsync: this, duration: const Duration(milliseconds: 120));
+    _scale = Tween<double>(begin: 1.0, end: 0.9).animate(_ctrl);
+  }
+  @override void dispose() { _ctrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
-    // BUG 3/4 FIX: navigate using correct field structure from ci_assignments
-    final loan     = ci['loans'] as Map<String, dynamic>? ?? {};
-    final lender   = (loan['lenders'] as Map?)?.cast<String, dynamic>() ?? {};
-    final user     = (lender['users'] as Map?)?.cast<String, dynamic>() ?? {};
-    final addresses= (user['addresses'] as List?)?.cast<Map<String,dynamic>>() ?? [];
-    final addr     = addresses.isNotEmpty ? addresses.first : <String,dynamic>{};
-
-    final borrowerName = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
-    final loanCode     = loan['loan_code'] as String? ?? '-';
-    final addressStr   = [
-      addr['street'],
-      addr['barangay'],
-      addr['municipality'],
-    ].where((v) => v != null && v.toString().isNotEmpty).join(', ');
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: BorderSide(
-              color: Colors.orange.withValues(alpha: 0.3))),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.orange.withValues(alpha: 0.1),
-          child: const Icon(Icons.assignment_outlined,
-              color: Colors.orange),
-        ),
-        title: Text(
-          borrowerName.isEmpty ? 'Unknown Borrower' : borrowerName,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-        subtitle: Text(
-          '$loanCode${addressStr.isNotEmpty ? ' • $addressStr' : ''}',
-          style: const TextStyle(fontSize: 12),
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 8, vertical: 4),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTapDown:   (_) => _ctrl.forward(),
+      onTapUp:     (_) { _ctrl.reverse(); context.go(widget.def.route); },
+      onTapCancel: ()  => _ctrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (_, child) => Transform.scale(scale: _scale.value, child: child),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20)),
-          child: Text(
-            // BUG 4 FIX: field is 'ci_status', not 'status'
-            ((ci['ci_status'] as String?) ?? 'pending').toUpperCase(),
-            style: const TextStyle(
-                fontSize:   10,
-                color:      Colors.orange,
-                fontWeight: FontWeight.bold),
+            color:        isDark ? AppColors.darkCard : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            boxShadow: [BoxShadow(color: widget.def.color.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color:        widget.def.color.withValues(alpha: isDark ? 0.2 : 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(widget.def.icon, color: widget.def.color, size: 22),
+              ),
+              const SizedBox(height: 8),
+              Text(widget.def.label, style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+            ],
           ),
         ),
       ),
@@ -593,42 +488,231 @@ class _CiTile extends StatelessWidget {
   }
 }
 
-class _CollectionTile extends StatelessWidget {
-  final dynamic collection;
-  const _CollectionTile({required this.collection});
+class _CiCard extends StatelessWidget {
+  final dynamic ci;
+  const _CiCard({required this.ci});
 
   @override
   Widget build(BuildContext context) {
-    // BUG 3 FIX: field is 'collected_amount', not 'amount'
-    final amt    = (collection['collected_amount'] as num?)?.toDouble() ?? 0;
-    final loan   = collection['loans'] as Map<String, dynamic>? ?? {};
-    final lender = (loan['lenders'] as Map?)?.cast<String, dynamic>() ?? {};
-    final user   = (lender['users'] as Map?)?.cast<String, dynamic>() ?? {};
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
+    final loan       = ci['loans'] as Map<String, dynamic>? ?? {};
+    final lender     = (loan['lenders'] as Map?)?.cast<String, dynamic>() ?? {};
+    final user       = (lender['users'] as Map?)?.cast<String, dynamic>() ?? {};
+    final addresses  = (user['addresses'] as List?)?.cast<Map<String,dynamic>>() ?? [];
+    final addr       = addresses.isNotEmpty ? addresses.first : <String,dynamic>{};
+    final ciStatus   = (ci['ci_status'] as String?) ?? 'pending';
+
     final borrowerName = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
     final loanCode     = loan['loan_code'] as String? ?? '-';
+    final addressStr   = [addr['barangay'], addr['municipality']]
+        .where((v) => v != null && v.toString().isNotEmpty).join(', ');
 
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.green.withValues(alpha: 0.1),
-          child: const Icon(Icons.payments_outlined,
-              color: Colors.green),
+    final statusColor = ciStatus == 'ongoing' ? AppColors.primary500 : AppColors.warning;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color:        isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42, height: 42,
+            decoration: BoxDecoration(
+              color:        statusColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.assignment_outlined, color: statusColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  borrowerName.isEmpty ? 'Unknown Borrower' : borrowerName,
+                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '$loanCode${addressStr.isNotEmpty ? ' • $addressStr' : ''}',
+                  style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            child: Text(ciStatus.toUpperCase(), style: TextStyle(fontFamily: 'Poppins', fontSize: 10, color: statusColor, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CollectionCard extends StatelessWidget {
+  final dynamic collection;
+  const _CollectionCard({required this.collection});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark       = Theme.of(context).brightness == Brightness.dark;
+    final amt          = (collection['collected_amount'] as num?)?.toDouble() ?? 0;
+    final status       = collection['collection_status'] as String? ?? '';
+    final loan         = collection['loans'] as Map<String, dynamic>? ?? {};
+    final lender       = (loan['lenders'] as Map?)?.cast<String, dynamic>() ?? {};
+    final user         = (lender['users'] as Map?)?.cast<String, dynamic>() ?? {};
+    final borrowerName = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
+    final loanCode     = loan['loan_code'] as String? ?? '-';
+    final createdAt    = collection['created_at'] as String? ?? '';
+
+    String dateLabel = '';
+    if (createdAt.isNotEmpty) {
+      try {
+        dateLabel = DateFormat('MMM d, y').format(DateTime.parse(createdAt));
+      } catch (_) {}
+    }
+
+    final statusColor = status == 'completed' ? AppColors.success : AppColors.primary500;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color:        isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42, height: 42,
+            decoration: BoxDecoration(
+              color:        AppColors.success.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.payments_rounded, color: AppColors.success, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  borrowerName.isEmpty ? 'Unknown Borrower' : borrowerName,
+                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  'Loan $loanCode${dateLabel.isNotEmpty ? ' • $dateLabel' : ''}',
+                  style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('₱${NumberFormat('#,##0.00').format(amt)}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.success)),
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                child: Text(status.toUpperCase(), style: TextStyle(fontFamily: 'Poppins', fontSize: 9, color: statusColor, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final int    count;
+  final VoidCallback? onSeeAll;
+  const _SectionHeader({required this.title, required this.count, this.onSeeAll});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Text(title, style: const TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: AppColors.primary100, borderRadius: BorderRadius.circular(20)),
+              child: Text('$count', style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary600)),
+            ),
+          ],
         ),
-        title: Text(
-          borrowerName.isEmpty ? 'Unknown Borrower' : borrowerName,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-        subtitle: Text('Loan $loanCode',
-            style: const TextStyle(fontSize: 12)),
-        trailing: Text(
-          '₱${NumberFormat('#,##0.00').format(amt)}',
-          style: const TextStyle(
-              fontWeight: FontWeight.bold, color: Colors.green),
-        ),
+        if (onSeeAll != null)
+          TextButton(
+            onPressed: onSeeAll,
+            child: const Text('See all', style: TextStyle(fontFamily: 'Poppins', fontSize: 12)),
+          ),
+      ],
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String   message, sub;
+  const _EmptyState({required this.icon, required this.message, required this.sub});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color:        isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          const SizedBox(height: 12),
+          Text(message, style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(sub, style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+class _RiderSkeleton extends StatelessWidget {
+  const _RiderSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
+class _ErrorBody extends StatelessWidget {
+  final String message;
+  const _ErrorBody({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+          const SizedBox(height: 12),
+          const Text('Something went wrong', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
+          Text(message, style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.lightTextSecondary)),
+        ],
       ),
     );
   }

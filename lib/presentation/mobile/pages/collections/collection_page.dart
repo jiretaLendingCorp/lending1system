@@ -182,7 +182,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage>
             error: (e, _) => _ErrorView(message: e.toString()),
             data: (items) {
               if (items.isEmpty) {
-                return _EmptyView(
+                return const _EmptyView(
                   icon: Icons.check_circle_outline,
                   message: 'No pending collections',
                   sub: 'All caught up!',
@@ -210,7 +210,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage>
             error: (e, _) => _ErrorView(message: e.toString()),
             data: (items) {
               if (items.isEmpty) {
-                return _EmptyView(
+                return const _EmptyView(
                   icon: Icons.history,
                   message: 'No collection history',
                   sub: 'Completed collections will appear here',

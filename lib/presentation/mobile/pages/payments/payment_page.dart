@@ -399,7 +399,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
 
                     // Status
                     DropdownButtonFormField<String>(
-                      value: _paymentStatus,
+                      initialValue: _paymentStatus,
                       decoration: InputDecoration(
                         labelText: 'Collection Status',
                         prefixIcon: const Icon(Icons.fact_check_outlined),
