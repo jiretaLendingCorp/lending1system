@@ -83,9 +83,9 @@ class LenderDashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final user = ref.watch(authStateProvider).value;
-    final loans = ref.watch(lenderActiveLoansProvider);
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
+    final user       = ref.watch(authStateProvider).value;
+    final loans      = ref.watch(lenderActiveLoansProvider);
     final notifCount = ref.watch(lenderNotifCountProvider).value ?? 0;
 
     final firstName = user?['first_name'] as String? ?? 'there';
@@ -99,14 +99,14 @@ class LenderDashboardPage extends ConsumerWidget {
           // ── Hero App Bar ───────────────────────────────────────────────
           SliverAppBar(
             expandedHeight: 220,
-            pinned: true,
+            pinned:         true,
             backgroundColor: AppColors.primary600,
-            elevation: 0,
+            elevation:       0,
             flexibleSpace: FlexibleSpaceBar(
               background: _HeroHeader(
-                firstName: firstName,
+                firstName:  firstName,
                 notifCount: notifCount,
-                loans: loans.value ?? [],
+                loans:      loans.value ?? [],
               ),
             ),
             actions: [
@@ -120,8 +120,7 @@ class LenderDashboardPage extends ConsumerWidget {
                         color: Colors.white, size: 26),
                     if (notifCount > 0)
                       Positioned(
-                        top: -4,
-                        right: -4,
+                        top: -4, right: -4,
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: const BoxDecoration(
@@ -129,8 +128,8 @@ class LenderDashboardPage extends ConsumerWidget {
                           child: Text(
                             notifCount > 9 ? '9+' : '$notifCount',
                             style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
+                                color:      Colors.white,
+                                fontSize:   9,
                                 fontWeight: FontWeight.w700),
                           ),
                         ),
@@ -153,32 +152,26 @@ class LenderDashboardPage extends ConsumerWidget {
 
                 // Active loans
                 _SectionHeader(
-                  title: 'My Loans',
+                  title:    'My Loans',
                   onSeeAll: () => context.go(AppConstants.routeLenderLoans),
                 ),
                 const SizedBox(height: 12),
 
                 loans.when(
                   loading: () => _LoanCardSkeleton(),
-                  error: (_, __) => const _ErrorWidget(),
+                  error:   (_, __) => const _ErrorWidget(),
                   data: (loanList) => loanList.isEmpty
                       ? _EmptyLoansWidget()
                       : Column(
-                          children: loanList
-                              .asMap()
-                              .entries
-                              .map(
-                                (e) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _LoanCard(loan: e.value),
-                                )
-                                    .animate(delay: (80 * e.key).ms)
-                                    .fadeIn(duration: 400.ms)
-                                    .slideY(
-                                        begin: 0.15,
-                                        curve: Curves.easeOutCubic),
-                              )
-                              .toList(),
+                          children: loanList.asMap().entries.map((e) =>
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _LoanCard(loan: e.value),
+                            )
+                                .animate(delay: (80 * e.key).ms)
+                                .fadeIn(duration: 400.ms)
+                                .slideY(begin: 0.15, curve: Curves.easeOutCubic),
+                          ).toList(),
                         ),
                 ),
 
@@ -201,7 +194,7 @@ class LenderDashboardPage extends ConsumerWidget {
 
 class _HeroHeader extends StatelessWidget {
   final String firstName;
-  final int notifCount;
+  final int    notifCount;
   final List<Map<String, dynamic>> loans;
 
   const _HeroHeader({
@@ -215,9 +208,7 @@ class _HeroHeader extends StatelessWidget {
     final totalBalance = loans
         .where((l) => ['active', 'overdue'].contains(l['loan_status']))
         .fold<double>(
-            0,
-            (s, l) =>
-                s + ((l['outstanding_balance'] as num?)?.toDouble() ?? 0));
+            0, (s, l) => s + ((l['outstanding_balance'] as num?)?.toDouble() ?? 0));
 
     return Container(
       decoration: const BoxDecoration(gradient: AppColors.heroGradient),
@@ -230,8 +221,8 @@ class _HeroHeader extends StatelessWidget {
             'Hello, $firstName 👋',
             style: const TextStyle(
               fontFamily: 'Poppins',
-              fontSize: 16,
-              color: Colors.white70,
+              fontSize:   16,
+              color:      Colors.white70,
               fontWeight: FontWeight.w400,
             ),
           ).animate().fadeIn(duration: 400.ms),
@@ -241,10 +232,10 @@ class _HeroHeader extends StatelessWidget {
           const Text(
             'Your Loan Overview',
             style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+              fontFamily:    'Poppins',
+              fontSize:      22,
+              fontWeight:    FontWeight.w700,
+              color:         Colors.white,
               letterSpacing: -0.3,
             ),
           ).animate(delay: 100.ms).fadeIn(duration: 400.ms),
@@ -255,7 +246,7 @@ class _HeroHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
+              color:        Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
@@ -269,17 +260,17 @@ class _HeroHeader extends StatelessWidget {
                       'Outstanding Balance',
                       style: TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 12,
-                          color: Colors.white70),
+                          fontSize:   12,
+                          color:      Colors.white70),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '₱${totalBalance.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
                       style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        fontFamily:    'Poppins',
+                        fontSize:      22,
+                        fontWeight:    FontWeight.w800,
+                        color:         Colors.white,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -288,7 +279,7 @@ class _HeroHeader extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color:        Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.account_balance_wallet,
@@ -311,14 +302,10 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      const _ActionDef('Apply Loan', Icons.add_card_rounded,
-          AppColors.primary500, AppConstants.routeLenderApply),
-      const _ActionDef('Pay Now', Icons.payment_rounded, AppColors.success,
-          AppConstants.routeLenderLoans),
-      const _ActionDef('Documents', Icons.description_rounded,
-          AppColors.warning, AppConstants.routeLenderDocuments),
-      const _ActionDef('Profile', Icons.manage_accounts_rounded,
-          AppColors.accent, AppConstants.routeLenderProfile),
+      const _ActionDef('Apply Loan',  Icons.add_card_rounded,        AppColors.primary500, AppConstants.routeLenderApply),
+      const _ActionDef('Pay Now',     Icons.payment_rounded,         AppColors.success,    AppConstants.routeLenderLoans),
+      const _ActionDef('Documents',   Icons.description_rounded,     AppColors.warning,    AppConstants.routeLenderDocuments),
+      const _ActionDef('Profile',     Icons.manage_accounts_rounded, AppColors.accent,     AppConstants.routeLenderProfile),
     ];
 
     return Column(
@@ -327,7 +314,7 @@ class _QuickActions extends StatelessWidget {
         const Text('Quick Actions',
             style: TextStyle(
                 fontFamily: 'Poppins',
-                fontSize: 16,
+                fontSize:   16,
                 fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
         Row(
@@ -335,11 +322,14 @@ class _QuickActions extends StatelessWidget {
             final a = e.value;
             return Expanded(
               child: Padding(
-                padding:
-                    EdgeInsets.only(right: e.key < actions.length - 1 ? 10 : 0),
+                padding: EdgeInsets.only(right: e.key < actions.length - 1 ? 10 : 0),
                 child: _ActionButton(def: a),
-              ).animate(delay: (60 * e.key).ms).fadeIn(duration: 350.ms).scale(
-                  begin: const Offset(0.8, 0.8), curve: Curves.easeOutBack),
+              )
+                  .animate(delay: (60 * e.key).ms)
+                  .fadeIn(duration: 350.ms)
+                  .scale(
+                      begin: const Offset(0.8, 0.8),
+                      curve: Curves.easeOutBack),
             );
           }).toList(),
         ),
@@ -349,9 +339,9 @@ class _QuickActions extends StatelessWidget {
 }
 
 class _ActionDef {
-  final String label, route;
+  final String   label, route;
   final IconData icon;
-  final Color color;
+  final Color    color;
   const _ActionDef(this.label, this.icon, this.color, this.route);
 }
 
@@ -366,12 +356,12 @@ class _ActionButton extends StatefulWidget {
 class _ActionButtonState extends State<_ActionButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late Animation<double> _scale;
+  late Animation<double>   _scale;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
+    _ctrl  = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 120));
     _scale = Tween<double>(begin: 1.0, end: 0.9).animate(_ctrl);
   }
@@ -387,12 +377,9 @@ class _ActionButtonState extends State<_ActionButton>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
-      onTapDown: (_) => _ctrl.forward(),
-      onTapUp: (_) {
-        _ctrl.reverse();
-        context.go(widget.def.route);
-      },
-      onTapCancel: () => _ctrl.reverse(),
+      onTapDown:   (_) => _ctrl.forward(),
+      onTapUp:     (_) { _ctrl.reverse(); context.go(widget.def.route); },
+      onTapCancel: ()  => _ctrl.reverse(),
       child: AnimatedBuilder(
         animation: _scale,
         builder: (_, child) =>
@@ -400,16 +387,16 @@ class _ActionButtonState extends State<_ActionButton>
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkCard : Colors.white,
+            color:        isDark ? AppColors.darkCard : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
             ),
             boxShadow: [
               BoxShadow(
-                color: widget.def.color.withValues(alpha: 0.1),
+                color:      widget.def.color.withValues(alpha: 0.1),
                 blurRadius: 12,
-                offset: const Offset(0, 4),
+                offset:     const Offset(0, 4),
               ),
             ],
           ),
@@ -418,17 +405,19 @@ class _ActionButtonState extends State<_ActionButton>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: widget.def.color.withValues(alpha: isDark ? 0.2 : 0.1),
+                  color: widget.def.color
+                      .withValues(alpha: isDark ? 0.2 : 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(widget.def.icon, color: widget.def.color, size: 22),
+                child: Icon(widget.def.icon,
+                    color: widget.def.color, size: 22),
               ),
               const SizedBox(height: 8),
               Text(
                 widget.def.label,
                 style: const TextStyle(
                   fontFamily: 'Poppins',
-                  fontSize: 11,
+                  fontSize:   11,
                   fontWeight: FontWeight.w600,
                 ),
                 textAlign: TextAlign.center,
@@ -451,15 +440,15 @@ class _LoanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final status = loan['loan_status'] as String? ?? '';
+    final isDark      = Theme.of(context).brightness == Brightness.dark;
+    final status      = loan['loan_status'] as String? ?? '';
     final statusColor = AppColors.loanStatusColor(status);
-    final code = loan['loan_code'] as String? ?? '';
-    final principal = (loan['principal_amount'] as num?)?.toDouble() ?? 0;
+    final code        = loan['loan_code'] as String? ?? '';
+    final principal   = (loan['principal_amount'] as num?)?.toDouble() ?? 0;
     final outstanding = (loan['outstanding_balance'] as num?)?.toDouble() ?? 0;
-    final totalPay = (loan['total_payable'] as num?)?.toDouble() ?? 0;
-    final frequency = loan['payment_frequency'] as String? ?? '';
-    final payAmt = (loan['payment_amount'] as num?)?.toDouble() ?? 0;
+    final totalPay    = (loan['total_payable'] as num?)?.toDouble() ?? 0;
+    final frequency   = loan['payment_frequency'] as String? ?? '';
+    final payAmt      = (loan['payment_amount'] as num?)?.toDouble() ?? 0;
 
     final progress =
         totalPay > 0 ? (1 - (outstanding / totalPay)).clamp(0.0, 1.0) : 0.0;
@@ -467,16 +456,16 @@ class _LoanCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
+        color:        isDark ? AppColors.darkCard : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+            color:      Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
             blurRadius: 12,
-            offset: const Offset(0, 4),
+            offset:     const Offset(0, 4),
           ),
         ],
       ),
@@ -492,35 +481,35 @@ class _LoanCard extends StatelessWidget {
                   Text(code,
                       style: const TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 12,
+                          fontSize:   12,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.primary500)),
+                          color:      AppColors.primary500)),
                   const SizedBox(height: 2),
                   Text(
                     '₱${_fmt(principal)}',
                     style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                        fontFamily:    'Poppins',
+                        fontSize:      20,
+                        fontWeight:    FontWeight.w800,
                         letterSpacing: -0.5),
                   ),
                 ],
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
+                  color:        statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   _statusLabel(status),
                   style: TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize: 11,
+                      fontSize:   11,
                       fontWeight: FontWeight.w700,
-                      color: statusColor),
+                      color:      statusColor),
                 ),
               ),
             ],
@@ -539,16 +528,16 @@ class _LoanCard extends StatelessWidget {
                     '${(progress * 100).toStringAsFixed(0)}% paid',
                     style: TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 11,
+                        fontSize:   11,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   Text(
                     'Balance: ₱${_fmt(outstanding)}',
                     style: const TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 11,
+                        fontSize:   11,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.error),
+                        color:      AppColors.error),
                   ),
                 ],
               ),
@@ -556,11 +545,14 @@ class _LoanCard extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor:
-                      isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  value:           progress,
+                  backgroundColor: isDark
+                      ? AppColors.darkBorder
+                      : AppColors.lightBorder,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    progress >= 1.0 ? AppColors.success : AppColors.primary500,
+                    progress >= 1.0
+                        ? AppColors.success
+                        : AppColors.primary500,
                   ),
                   minHeight: 7,
                 ),
@@ -573,7 +565,7 @@ class _LoanCard extends StatelessWidget {
           Row(
             children: [
               _InfoChip(
-                icon: Icons.repeat_rounded,
+                icon:  Icons.repeat_rounded,
                 label: '${_freqLabel(frequency)} ₱${_fmt(payAmt)}',
               ),
               const SizedBox(width: 8),
@@ -582,18 +574,18 @@ class _LoanCard extends StatelessWidget {
                   onTap: () => context.go(
                       '${AppConstants.routeLenderPay.replaceAll(':loanId', '')}${loan['id']}'),
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
+                      gradient:     AppColors.primaryGradient,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text('Pay Now',
                         style: TextStyle(
                             fontFamily: 'Poppins',
-                            fontSize: 11,
+                            fontSize:   11,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white)),
+                            color:      Colors.white)),
                   ),
                 ),
             ],
@@ -608,44 +600,31 @@ class _LoanCard extends StatelessWidget {
 
   String _statusLabel(String s) {
     switch (s) {
-      case 'pending':
-        return 'Pending';
-      case 'under_ci':
-        return 'Under CI';
-      case 'approved':
-        return 'Approved';
-      case 'rejected':
-        return 'Rejected';
-      case 'active':
-        return 'Active';
-      case 'overdue':
-        return 'Overdue';
-      case 'completed':
-        return 'Completed';
-      case 'frozen':
-        return 'Frozen';
-      default:
-        return s;
+      case 'pending':   return 'Pending';
+      case 'under_ci':  return 'Under CI';
+      case 'approved':  return 'Approved';
+      case 'rejected':  return 'Rejected';
+      case 'active':    return 'Active';
+      case 'overdue':   return 'Overdue';
+      case 'completed': return 'Completed';
+      case 'frozen':    return 'Frozen';
+      default:          return s;
     }
   }
 
   String _freqLabel(String f) {
     switch (f) {
-      case 'daily':
-        return 'Daily';
-      case 'weekly':
-        return 'Weekly';
-      case 'monthly':
-        return 'Monthly';
-      default:
-        return f;
+      case 'daily':   return 'Daily';
+      case 'weekly':  return 'Weekly';
+      case 'monthly': return 'Monthly';
+      default:        return f;
     }
   }
 }
 
 class _InfoChip extends StatelessWidget {
   final IconData icon;
-  final String label;
+  final String   label;
   const _InfoChip({required this.icon, required this.label});
 
   @override
@@ -653,19 +632,19 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color:        Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon,
-              size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          Icon(icon, size: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: 4),
           Text(label,
               style: TextStyle(
                   fontFamily: 'Poppins',
-                  fontSize: 11,
+                  fontSize:   11,
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
@@ -685,13 +664,13 @@ class _ApplyLoanBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: AppColors.primaryGradient,
+          gradient:     AppColors.primaryGradient,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary500.withValues(alpha: 0.3),
+              color:      AppColors.primary500.withValues(alpha: 0.3),
               blurRadius: 20,
-              offset: const Offset(0, 8),
+              offset:     const Offset(0, 8),
             ),
           ],
         ),
@@ -704,15 +683,15 @@ class _ApplyLoanBanner extends StatelessWidget {
                   const Text('Need more funds?',
                       style: TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 16,
+                          fontSize:   16,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white)),
+                          color:      Colors.white)),
                   const SizedBox(height: 4),
                   Text(
                     'Apply for a loan from ₱5,000 up to ₱500,000',
                     style: TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 12,
+                        fontSize:   12,
                         color: Colors.white.withValues(alpha: 0.8)),
                   ),
                 ],
@@ -721,7 +700,7 @@ class _ApplyLoanBanner extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color:        Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(Icons.arrow_forward_rounded,
@@ -749,7 +728,7 @@ class _SectionHeader extends StatelessWidget {
         Text(title,
             style: const TextStyle(
                 fontFamily: 'Poppins',
-                fontSize: 16,
+                fontSize:   16,
                 fontWeight: FontWeight.w700)),
         if (onSeeAll != null)
           TextButton(
@@ -773,12 +752,14 @@ class _LoanCardSkeleton extends StatelessWidget {
           height: 160,
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkCard : Colors.white,
+            color:        isDark ? AppColors.darkCard : Colors.white,
             borderRadius: BorderRadius.circular(20),
           ),
-        ).animate(onPlay: (c) => c.repeat()).shimmer(
-            duration: 1200.ms,
-            color: AppColors.primary100.withValues(alpha: 0.3)),
+        )
+            .animate(onPlay: (c) => c.repeat())
+            .shimmer(
+                duration: 1200.ms,
+                color: AppColors.primary100.withValues(alpha: 0.3)),
       ),
     );
   }
@@ -792,18 +773,19 @@ class _EmptyLoansWidget extends StatelessWidget {
       child: Column(
         children: [
           Icon(Icons.account_balance_wallet_outlined,
-              size: 56, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              size:  56,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(height: 12),
           const Text('No active loans',
               style: TextStyle(
                   fontFamily: 'Poppins',
-                  fontSize: 15,
+                  fontSize:   15,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
           Text('Apply for a loan to get started',
               style: TextStyle(
                   fontFamily: 'Poppins',
-                  fontSize: 13,
+                  fontSize:   13,
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
