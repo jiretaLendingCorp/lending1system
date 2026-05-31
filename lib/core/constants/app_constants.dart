@@ -87,21 +87,23 @@ class AppConstants {
   static const String routeWebAuditLogs   = '/web/audit-logs';
   static const String routeWebProfile     = '/web/profile';
 
-  static const String routeRiderDashboard    = '/rider/dashboard';
-  static const String routeRiderAssignments  = '/rider/assignments';
-  static const String routeRiderMap          = '/rider/map/:assignmentId';
-  static const String routeRiderCI           = '/rider/ci/:assignmentId';
-  static const String routeRiderCollect      = '/rider/collect/:collectionId';
-  static const String routeRiderProfile      = '/rider/profile';
-  static const String routeRiderNotifications= '/rider/notifications';
+  static const String routeRiderDashboard     = '/rider/dashboard';
+  static const String routeRiderAssignments   = '/rider/assignments';
+  static const String routeRiderMap           = '/rider/map/:assignmentId';
+  static const String routeRiderCI            = '/rider/ci/:assignmentId';
+  static const String routeRiderCollect       = '/rider/collect/:collectionId';
+  static const String routeRiderHistory       = '/rider/history';
+  static const String routeRiderProfile       = '/rider/profile';
+  static const String routeRiderNotifications = '/rider/notifications';
 
-  static const String routeLenderDashboard    = '/lender/dashboard';
-  static const String routeLenderApply        = '/lender/apply';
-  static const String routeLenderLoans        = '/lender/loans';
-  static const String routeLenderLoanDetail   = '/lender/loans/:id';
-  static const String routeLenderPay          = '/lender/pay/:loanId';
-  static const String routeLenderDocuments    = '/lender/documents';
-  static const String routeLenderProfile      = '/lender/profile';
-  static const String routeLenderNotifications= '/lender/notifications';
-  static const String routeLenderCodeHistory  = '/lender/code-history';
+  static const String routeLenderDashboard     = '/lender/dashboard';
+  static const String routeLenderApply         = '/lender/apply';
+  static const String routeLenderLoans         = '/lender/loans';
+  static const String routeLenderLoanDetail    = '/lender/loans/:id';
+  static const String routeLenderPay           = '/lender/pay/:loanId';
+  static const String routeLenderDocuments     = '/lender/documents';
+  static const String routeLenderHistory       = '/lender/history';
+  static const String routeLenderProfile       = '/lender/profile';
+  static const String routeLenderNotifications = '/lender/notifications';
+  static const String routeLenderCodeHistory   = '/lender/code-history';
 }
