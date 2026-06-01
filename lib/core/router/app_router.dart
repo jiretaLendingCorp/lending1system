@@ -38,6 +38,8 @@ import '../../presentation/mobile/pages/profile/code_history_page.dart';
 import '../../presentation/mobile/pages/notifications/notifications_page.dart';
 import '../../presentation/mobile/pages/assignments/rider_assignments_page.dart';
 import '../../presentation/mobile/pages/documents/lender_documents_page.dart';
+import '../../presentation/mobile/pages/history/lender_payment_history_page.dart';
+import '../../presentation/mobile/pages/history/rider_history_page.dart';
 import '../constants/app_constants.dart';
 import 'splash_page.dart';
 
@@ -254,6 +256,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path:        AppConstants.routeRiderHistory,
+            name:        'rider-history',
+            pageBuilder: (_, state) => _slidePage(state, const RiderHistoryPage()),
+          ),
+          GoRoute(
             path:        AppConstants.routeRiderProfile,
             name:        'rider-profile',
             pageBuilder: (_, state) => _slidePage(state, const ProfilePage()),
@@ -303,6 +310,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path:        AppConstants.routeLenderDocuments,
             name:        'lender-documents',
             pageBuilder: (_, state) => _slidePage(state, const LenderDocumentsPage()),
+          ),
+          GoRoute(
+            path:        AppConstants.routeLenderHistory,
+            name:        'lender-history',
+            pageBuilder: (_, state) => _slidePage(state, const LenderPaymentHistoryPage()),
           ),
           GoRoute(
             path:        AppConstants.routeLenderProfile,

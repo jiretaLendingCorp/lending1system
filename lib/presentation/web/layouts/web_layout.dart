@@ -340,14 +340,15 @@ class _NavItemState extends State<_NavItem> {
         onEnter: (_) => setState(() => _hovered = true),
         onExit:  (_) => setState(() => _hovered = false),
         cursor:  SystemMouseCursors.click,
-        child: GestureDetector(
-          // ✅ FIX: HitTestBehavior.opaque ensures the transparent background
-          //         still receives pointer events.  Without this, Flutter skips
-          //         hit-testing for transparent areas (deferToChild default),
-          //         so non-active items never fire onTap.
-          behavior: HitTestBehavior.opaque,
-          onTap: () => context.go(widget.route),
-          child: AnimatedContainer(
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap:        () => context.go(widget.route),
+            borderRadius: BorderRadius.circular(10),
+            hoverColor:   Colors.transparent,
+            splashColor:  AppColors.primary500.withValues(alpha: 0.08),
+            child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             height:   44,
             decoration: BoxDecoration(
@@ -416,6 +417,7 @@ class _NavItemState extends State<_NavItem> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

@@ -1,28 +1,4 @@
-// ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  FIX 5 — lib/presentation/mobile/layouts/mobile_layout.dart             ║
-// ╠══════════════════════════════════════════════════════════════════════════╣
-// ║  BUG: Bottom nav always shows "Home" selected even after tapping other  ║
-// ║       tabs. Tapping tabs appears to do nothing visually.                ║
-// ║                                                                          ║
-// ║  ROOT CAUSE:                                                             ║
-// ║    _selectedIndex is a local int starting at 0. After the GoRouter      ║
-// ║    redirects the user (e.g. from the splash page directly to             ║
-// ║    /lender/loans), _selectedIndex is never updated. The nav bar always  ║
-// ║    highlights Home (index 0) regardless of the current page.            ║
-// ║                                                                          ║
-// ║    Also, tapping a tab calls context.go() BUT if the GoRouter is being  ║
-// ║    recreated frequently (see FIX6), the go() call gets swallowed and    ║
-// ║    the page doesn't change.                                              ║
-// ║                                                                          ║
-// ║  FIX:                                                                   ║
-// ║    Derive the selected index from GoRouterState.of(context).            ║
-// ║    matchedLocation instead of tracking it locally. This keeps the nav  ║
-// ║    in sync with whatever the router says the current page is, including ║
-// ║    deep links and redirects.                                             ║
-// ╚══════════════════════════════════════════════════════════════════════════╝
-
 // lib/presentation/mobile/layouts/mobile_layout.dart
-// Jireta Loans & Credit Corp. 1996 — Mobile Floating Bottom Nav
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +10,7 @@ import '../../../core/constants/app_constants.dart';
 
 class MobileLayout extends ConsumerStatefulWidget {
   final Widget child;
-  final String role; // 'rider' | 'lender'
+  final String role;
 
   const MobileLayout({
     super.key,
@@ -53,15 +29,17 @@ class _MobileLayoutState extends ConsumerState<MobileLayout>
   final List<_NavDef> _riderNav = const [
     _NavDef(icon: Icons.home_rounded,          label: 'Home',        route: AppConstants.routeRiderDashboard),
     _NavDef(icon: Icons.assignment_rounded,    label: 'Assignments', route: AppConstants.routeRiderAssignments),
+    _NavDef(icon: Icons.history_rounded,       label: 'History',     route: AppConstants.routeRiderHistory),
     _NavDef(icon: Icons.notifications_rounded, label: 'Alerts',      route: AppConstants.routeRiderNotifications),
     _NavDef(icon: Icons.person_rounded,        label: 'Profile',     route: AppConstants.routeRiderProfile),
   ];
 
   final List<_NavDef> _lenderNav = const [
-    _NavDef(icon: Icons.home_rounded,                    label: 'Home',    route: AppConstants.routeLenderDashboard),
-    _NavDef(icon: Icons.account_balance_wallet_rounded,  label: 'Loans',   route: AppConstants.routeLenderLoans),
-    _NavDef(icon: Icons.notifications_rounded,           label: 'Alerts',  route: AppConstants.routeLenderNotifications),
-    _NavDef(icon: Icons.person_rounded,                  label: 'Profile', route: AppConstants.routeLenderProfile),
+    _NavDef(icon: Icons.home_rounded,                   label: 'Home',    route: AppConstants.routeLenderDashboard),
+    _NavDef(icon: Icons.account_balance_wallet_rounded, label: 'Loans',   route: AppConstants.routeLenderLoans),
+    _NavDef(icon: Icons.history_rounded,                label: 'History', route: AppConstants.routeLenderHistory),
+    _NavDef(icon: Icons.notifications_rounded,          label: 'Alerts',  route: AppConstants.routeLenderNotifications),
+    _NavDef(icon: Icons.person_rounded,                 label: 'Profile', route: AppConstants.routeLenderProfile),
   ];
 
   List<_NavDef> get _navItems =>
@@ -82,16 +60,11 @@ class _MobileLayoutState extends ConsumerState<MobileLayout>
     super.dispose();
   }
 
-  // ✅ FIX: Derive the selected index from the current route location
-  //         instead of tracking it locally. This keeps the nav bar in sync
-  //         even after GoRouter-driven redirects (login → dashboard, etc.).
   int _selectedIndex(String location) {
-    // Find the nav item whose route most specifically matches the current path.
-    // Iterate in reverse so longer/more-specific routes take precedence.
     for (int i = _navItems.length - 1; i >= 0; i--) {
       if (location.startsWith(_navItems[i].route)) return i;
     }
-    return 0; // default: Home
+    return 0;
   }
 
   void _onNavTap(int index) {
@@ -101,7 +74,6 @@ class _MobileLayoutState extends ConsumerState<MobileLayout>
   @override
   Widget build(BuildContext context) {
     final isDark   = Theme.of(context).brightness == Brightness.dark;
-    // ✅ FIX: Read current location from GoRouter state to derive active tab
     final location = GoRouterState.of(context).matchedLocation;
     final selIdx   = _selectedIndex(location);
 
@@ -111,17 +83,13 @@ class _MobileLayoutState extends ConsumerState<MobileLayout>
       extendBody: true,
       bottomNavigationBar: _FloatingBottomNav(
         items:         _navItems,
-        selectedIndex: selIdx,      // ✅ FIX: router-driven, not local state
+        selectedIndex: selIdx,
         onTap:         _onNavTap,
         isDark:        isDark,
       ),
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────
-// Floating Bottom Nav
-// ─────────────────────────────────────────────────────────────
 
 class _FloatingBottomNav extends StatelessWidget {
   final List<_NavDef>      items;
@@ -140,12 +108,12 @@ class _FloatingBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: Container(
-          height: 68,
+          height: 64,
           decoration: BoxDecoration(
             color:        isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
                 color:      isDark
@@ -190,10 +158,6 @@ class _FloatingBottomNav extends StatelessWidget {
         .fadeIn(duration: 400.ms);
   }
 }
-
-// ─────────────────────────────────────────────────────────────
-// Nav Button
-// ─────────────────────────────────────────────────────────────
 
 class _NavButton extends StatefulWidget {
   final _NavDef  item;
@@ -241,7 +205,6 @@ class _NavButtonState extends State<_NavButton>
         : AppColors.lightTextSecondary;
 
     return GestureDetector(
-      // ✅ FIX: HitTestBehavior.opaque so transparent areas still receive taps
       behavior:    HitTestBehavior.opaque,
       onTapDown:   (_) => _ctrl.forward(),
       onTapUp:     (_) { _ctrl.reverse(); widget.onTap(); },
@@ -255,12 +218,12 @@ class _NavButtonState extends State<_NavButton>
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve:    Curves.easeOutCubic,
-          margin:   const EdgeInsets.all(8),
+          margin:   const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: widget.selected
                 ? AppColors.primary500
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -270,7 +233,7 @@ class _NavButtonState extends State<_NavButton>
                 child: Icon(
                   widget.item.icon,
                   key:   ValueKey(widget.selected),
-                  size:  22,
+                  size:  20,
                   color: widget.selected ? Colors.white : inactiveColor,
                 ),
               ),
@@ -279,7 +242,7 @@ class _NavButtonState extends State<_NavButton>
                 duration: const Duration(milliseconds: 200),
                 style: TextStyle(
                   fontFamily: 'Poppins',
-                  fontSize:   10,
+                  fontSize:   9,
                   fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w400,
                   color:      widget.selected ? Colors.white : inactiveColor,
                 ),
@@ -292,10 +255,6 @@ class _NavButtonState extends State<_NavButton>
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────
-// Nav Definition
-// ─────────────────────────────────────────────────────────────
 
 class _NavDef {
   final IconData icon;

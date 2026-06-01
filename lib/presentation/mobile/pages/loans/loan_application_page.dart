@@ -376,39 +376,31 @@ class _StepLoanDetails extends StatelessWidget {
         ),
         const SizedBox(height: 14),
 
-        DropdownButtonFormField<int>(
-          value: termDays,
-          decoration: InputDecoration(
-            labelText:  'Loan Term',
-            prefixIcon: const Icon(Icons.calendar_today_outlined),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            filled: true,
-          ),
+        _StyledDropdown<int>(
+          label:      'Loan Term',
+          icon:       Icons.calendar_today_outlined,
+          value:      termDays,
           items: const [
-            DropdownMenuItem(value: 15, child: Text('15 days')),
-            DropdownMenuItem(value: 30, child: Text('30 days')),
-            DropdownMenuItem(value: 45, child: Text('45 days')),
-            DropdownMenuItem(value: 60, child: Text('60 days')),
-            DropdownMenuItem(value: 90, child: Text('90 days')),
+            DropdownMenuItem(value: 15, child: Text('15 days', style: TextStyle(fontFamily: 'Poppins'))),
+            DropdownMenuItem(value: 30, child: Text('30 days', style: TextStyle(fontFamily: 'Poppins'))),
+            DropdownMenuItem(value: 45, child: Text('45 days', style: TextStyle(fontFamily: 'Poppins'))),
+            DropdownMenuItem(value: 60, child: Text('60 days', style: TextStyle(fontFamily: 'Poppins'))),
+            DropdownMenuItem(value: 90, child: Text('90 days', style: TextStyle(fontFamily: 'Poppins'))),
           ],
-          onChanged: (v) => onTermChanged(v!),
+          onChanged: onTermChanged,
         ),
         const SizedBox(height: 14),
 
-        DropdownButtonFormField<String>(
-          value: paymentFrequency,
-          decoration: InputDecoration(
-            labelText:  'Payment Frequency',
-            prefixIcon: const Icon(Icons.repeat_rounded),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            filled: true,
-          ),
+        _StyledDropdown<String>(
+          label:  'Payment Frequency',
+          icon:   Icons.repeat_rounded,
+          value:  paymentFrequency,
           items: const [
-            DropdownMenuItem(value: 'daily',   child: Text('Daily')),
-            DropdownMenuItem(value: 'weekly',  child: Text('Weekly')),
-            DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+            DropdownMenuItem(value: 'daily',   child: Text('Daily',   style: TextStyle(fontFamily: 'Poppins'))),
+            DropdownMenuItem(value: 'weekly',  child: Text('Weekly',  style: TextStyle(fontFamily: 'Poppins'))),
+            DropdownMenuItem(value: 'monthly', child: Text('Monthly', style: TextStyle(fontFamily: 'Poppins'))),
           ],
-          onChanged: (v) => onFreqChanged(v!),
+          onChanged: onFreqChanged,
         ),
         const SizedBox(height: 14),
 
@@ -509,13 +501,13 @@ class _StepReview extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
           ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.warningDark),
-            const SizedBox(width: 8),
+          child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.info_outline_rounded, size: 16, color: AppColors.warningDark),
+            SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Your application will be reviewed and subject to credit investigation before approval.',
-                style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.warningDark),
+                style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.warningDark),
               ),
             ),
           ]),
@@ -538,6 +530,51 @@ class _SummaryRow extends StatelessWidget {
         Text(label, style: TextStyle(fontFamily: 'Poppins', color: Colors.grey.shade600, fontSize: 13)),
         Text(value,  style: TextStyle(fontFamily: 'Poppins', fontWeight: bold ? FontWeight.w700 : FontWeight.w500, fontSize: bold ? 15 : 13)),
       ]),
+    );
+  }
+}
+
+// Styled DropdownButton wrapper — avoids the deprecated DropdownButtonFormField.value param
+class _StyledDropdown<T> extends StatelessWidget {
+  final String                       label;
+  final IconData                     icon;
+  final T                            value;
+  final List<DropdownMenuItem<T>>    items;
+  final ValueChanged<T>              onChanged;
+
+  const _StyledDropdown({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText:  label,
+        prefixIcon: Icon(icon),
+        border:     OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled:     true,
+        fillColor:  isDark ? Colors.white10 : Colors.grey.shade50,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value:       value,
+          isExpanded:  true,
+          items:       items,
+          onChanged:   (v) { if (v != null) onChanged(v); },
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize:   14,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      ),
     );
   }
 }
