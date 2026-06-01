@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_colors.dart';
@@ -218,8 +219,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _signOut() async {
-    await ref.read(authNotifierProvider.notifier).signOut();
-    // GoRouter redirect handles navigation when session is cleared
+    try {
+      await ref.read(authNotifierProvider.notifier).signOut();
+    } catch (_) {}
+    // Belt-and-suspenders: also navigate explicitly in case the
+    // GoRouter refresh fires before the context is ready
+    if (!mounted) return;
+    context.go(AppConstants.routeMobileLogin);
   }
 
   @override

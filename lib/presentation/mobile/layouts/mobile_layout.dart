@@ -73,9 +73,17 @@ class _MobileLayoutState extends ConsumerState<MobileLayout>
 
   @override
   Widget build(BuildContext context) {
-    final isDark   = Theme.of(context).brightness == Brightness.dark;
-    final location = GoRouterState.of(context).matchedLocation;
-    final selIdx   = _selectedIndex(location);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Guard against stale context during sign-out navigation transitions
+    String location;
+    try {
+      location = GoRouterState.of(context).matchedLocation;
+    } catch (_) {
+      location = widget.role == 'rider'
+          ? AppConstants.routeRiderDashboard
+          : AppConstants.routeLenderDashboard;
+    }
+    final selIdx = _selectedIndex(location);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,

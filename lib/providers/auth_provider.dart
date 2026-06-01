@@ -325,6 +325,7 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
   // ── Sign Out ─────────────────────────────────────────────
 
   Future<void> signOut() async {
+    // Step 1: audit log (non-critical — never block sign-out if this fails)
     try {
       final userId = ref.read(currentUserIdProvider);
       if (userId != null) {
@@ -335,7 +336,15 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
           'description': 'User signed out',
         });
       }
+    } catch (_) {}
+
+    // Step 2: always sign out — separate catch so audit failure cannot block this
+    try {
       await _supabase.auth.signOut();
+    } catch (_) {}
+
+    // Step 3: clear Riverpod state
+    try {
       ref.invalidate(authStateProvider);
       state = const AsyncValue.data(null);
     } catch (_) {}
