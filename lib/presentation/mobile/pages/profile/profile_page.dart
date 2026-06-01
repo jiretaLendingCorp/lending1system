@@ -13,7 +13,8 @@ import '../../../../providers/auth_provider.dart';
 import '../../../../providers/theme_provider.dart';
 
 final mobileProfileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final authUid = Supabase.instance.client.auth.currentUser?.id;
+  final authState = await ref.watch(authStateProvider.future);
+  final authUid = authState?['auth_id'] as String?;
   if (authUid == null) return {};
   final res = await Supabase.instance.client
       .from('users')
@@ -28,15 +29,8 @@ final mobileProfileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 });
 
 final mobileRoleProvider = FutureProvider<String>((ref) async {
-  final uid = Supabase.instance.client.auth.currentUser?.id;
-  if (uid == null) return '';
-  try {
-    return await Supabase.instance.client
-        .rpc('get_user_role')
-        .then((v) => (v as String?) ?? '');
-  } catch (_) {
-    return '';
-  }
+  final authState = await ref.watch(authStateProvider.future);
+  return authState?['role'] as String? ?? '';
 });
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -48,12 +42,12 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _editMode = false;
-  final _formKey       = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>();
   final _firstNameCtrl = TextEditingController();
-  final _lastNameCtrl  = TextEditingController();
-  final _phoneCtrl     = TextEditingController();
-  bool _saving         = false;
-  bool _loaded         = false;
+  final _lastNameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  bool _saving = false;
+  bool _loaded = false;
   bool _uploadingPhoto = false;
 
   @override
@@ -66,9 +60,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   void _loadProfile(Map<String, dynamic> p) {
     if (!_loaded) {
-      _firstNameCtrl.text = p['first_name']   as String? ?? '';
-      _lastNameCtrl.text  = p['last_name']    as String? ?? '';
-      _phoneCtrl.text     = p['phone_number'] as String? ?? '';
+      _firstNameCtrl.text = p['first_name'] as String? ?? '';
+      _lastNameCtrl.text = p['last_name'] as String? ?? '';
+      _phoneCtrl.text = p['phone_number'] as String? ?? '';
       _loaded = true;
     }
   }
@@ -80,13 +74,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final authUid = Supabase.instance.client.auth.currentUser?.id;
       if (authUid == null) return;
       await Supabase.instance.client.from('users').update({
-        'first_name':   _firstNameCtrl.text.trim(),
-        'last_name':    _lastNameCtrl.text.trim(),
+        'first_name': _firstNameCtrl.text.trim(),
+        'last_name': _lastNameCtrl.text.trim(),
         'phone_number': _phoneCtrl.text.trim(),
       }).eq('auth_id', authUid);
 
       ref.invalidate(mobileProfileProvider);
-      setState(() { _editMode = false; _loaded = false; });
+      setState(() {
+        _editMode = false;
+        _loaded = false;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -138,7 +135,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           const SizedBox(height: 8),
           ListTile(
             leading: const Icon(Icons.camera_alt_rounded),
-            title: const Text('Take Photo', style: TextStyle(fontFamily: 'Poppins')),
+            title: const Text('Take Photo',
+                style: TextStyle(fontFamily: 'Poppins')),
             onTap: () => Navigator.pop(context, ImageSource.camera),
           ),
           ListTile(
@@ -159,9 +157,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
-        source:       choice,
-        maxWidth:     512,
-        maxHeight:    512,
+        source: choice,
+        maxWidth: 512,
+        maxHeight: 512,
         imageQuality: 80,
       );
       if (picked == null) return;
@@ -171,8 +169,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final authUid = Supabase.instance.client.auth.currentUser?.id;
       if (authUid == null) return;
 
-      final bytes    = await picked.readAsBytes();
-      final ext      = picked.path.split('.').last.toLowerCase();
+      final bytes = await picked.readAsBytes();
+      final ext = picked.path.split('.').last.toLowerCase();
       final fileName = 'avatar_$authUid.$ext';
       final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
 
@@ -190,8 +188,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
       await Supabase.instance.client
           .from('users')
-          .update({'profile_picture_url': publicUrl})
-          .eq('auth_id', authUid);
+          .update({'profile_picture_url': publicUrl}).eq('auth_id', authUid);
 
       ref.invalidate(mobileProfileProvider);
       ref.invalidate(authStateProvider);
@@ -219,24 +216,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _signOut() async {
+    final router = GoRouter.of(context);
     try {
       await ref.read(authNotifierProvider.notifier).signOut();
     } catch (_) {}
-    // Belt-and-suspenders: also navigate explicitly in case the
-    // GoRouter refresh fires before the context is ready
     if (!mounted) return;
-    context.go(AppConstants.routeMobileLogin);
+    router.go(AppConstants.routeMobileLogin);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark    = Theme.of(context).brightness == Brightness.dark;
-    final async     = ref.watch(mobileProfileProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final async = ref.watch(mobileProfileProvider);
     final roleAsync = ref.watch(mobileRoleProvider);
-    final role      = roleAsync.value ?? '';
+    final role = roleAsync.value ?? '';
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+      backgroundColor:
+          isDark ? AppColors.darkBackground : AppColors.lightBackground,
       appBar: AppBar(
         title: const Text(
           'Profile',
@@ -253,55 +250,57 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             )
           else
             TextButton(
-              onPressed: () => setState(() { _editMode = false; _loaded = false; }),
-              child: const Text('Cancel', style: TextStyle(fontFamily: 'Poppins')),
+              onPressed: () => setState(() {
+                _editMode = false;
+                _loaded = false;
+              }),
+              child:
+                  const Text('Cancel', style: TextStyle(fontFamily: 'Poppins')),
             ),
         ],
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error:   (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text('Error: $e')),
         data: (p) {
           _loadProfile(p);
-          final firstName = p['first_name']        as String? ?? '';
-          final lastName  = p['last_name']         as String? ?? '';
-          final email     = p['email']             as String? ?? '';
-          final status    = p['account_status']    as String? ?? '';
+          final firstName = p['first_name'] as String? ?? '';
+          final lastName = p['last_name'] as String? ?? '';
+          final email = p['email'] as String? ?? '';
+          final status = p['account_status'] as String? ?? '';
           final avatarUrl = p['profile_picture_url'] as String?;
-          final initials  = '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}'.toUpperCase();
+          final initials =
+              '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}'
+                  .toUpperCase();
 
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
             child: Column(children: [
               _AvatarSection(
-                avatarUrl:      avatarUrl,
-                initials:       initials,
-                name:           '$firstName $lastName'.trim(),
-                email:          email,
-                role:           role,
-                status:         status,
+                avatarUrl: avatarUrl,
+                initials: initials,
+                name: '$firstName $lastName'.trim(),
+                email: email,
+                role: role,
+                status: status,
                 uploadingPhoto: _uploadingPhoto,
-                onPhotoTap:     _pickAndUploadPhoto,
+                onPhotoTap: _pickAndUploadPhoto,
               ).animate().fadeIn(duration: 400.ms),
-
               const SizedBox(height: 24),
-
               if (_editMode)
                 _EditForm(
-                  formKey:       _formKey,
+                  formKey: _formKey,
                   firstNameCtrl: _firstNameCtrl,
-                  lastNameCtrl:  _lastNameCtrl,
-                  phoneCtrl:     _phoneCtrl,
-                  saving:        _saving,
-                  onSave:        _saveProfile,
+                  lastNameCtrl: _lastNameCtrl,
+                  phoneCtrl: _phoneCtrl,
+                  saving: _saving,
+                  onSave: _saveProfile,
                 ).animate().fadeIn(duration: 300.ms)
               else
                 _ProfileInfo(profile: p)
                     .animate(delay: 200.ms)
                     .fadeIn(duration: 400.ms),
-
               const SizedBox(height: 24),
-
               _SettingsSection(onSignOut: _signOut),
             ]),
           );
@@ -312,9 +311,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 }
 
 class _AvatarSection extends StatelessWidget {
-  final String?      avatarUrl;
-  final String       initials, name, email, role, status;
-  final bool         uploadingPhoto;
+  final String? avatarUrl;
+  final String initials, name, email, role, status;
+  final bool uploadingPhoto;
   final VoidCallback onPhotoTap;
 
   const _AvatarSection({
@@ -339,7 +338,7 @@ class _AvatarSection extends StatelessWidget {
     return Column(children: [
       Stack(children: [
         GestureDetector(
-          onTap:    uploadingPhoto ? null : onPhotoTap,
+          onTap: uploadingPhoto ? null : onPhotoTap,
           behavior: HitTestBehavior.opaque,
           child: Container(
             width: 90,
@@ -349,9 +348,9 @@ class _AvatarSection extends StatelessWidget {
               gradient: AppColors.primaryGradient,
               boxShadow: [
                 BoxShadow(
-                  color:      AppColors.primary500.withValues(alpha: 0.3),
+                  color: AppColors.primary500.withValues(alpha: 0.3),
                   blurRadius: 20,
-                  offset:     const Offset(0, 8),
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
@@ -395,51 +394,48 @@ class _AvatarSection extends StatelessWidget {
                       ),
           ),
         ),
-
         Positioned(
           bottom: 0,
-          right:  0,
+          right: 0,
           child: GestureDetector(
-            onTap:    uploadingPhoto ? null : onPhotoTap,
+            onTap: uploadingPhoto ? null : onPhotoTap,
             behavior: HitTestBehavior.opaque,
             child: Container(
               width: 26,
               height: 26,
               decoration: BoxDecoration(
-                color:  AppColors.primary600,
-                shape:  BoxShape.circle,
+                color: AppColors.primary600,
+                shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 2),
               ),
               child: const Icon(
                 Icons.camera_alt_rounded,
-                size:  13,
+                size: 13,
                 color: Colors.white,
               ),
             ),
           ),
         ),
-
         Positioned(
-          top:   2,
+          top: 2,
           right: 2,
           child: Container(
-            width:  14,
+            width: 14,
             height: 14,
             decoration: BoxDecoration(
-              color:  statusColor,
-              shape:  BoxShape.circle,
+              color: statusColor,
+              shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 2),
             ),
           ),
         ),
       ]),
-
       const SizedBox(height: 12),
       Text(
         name.isEmpty ? 'User' : name,
         style: const TextStyle(
           fontFamily: 'Poppins',
-          fontSize:   18,
+          fontSize: 18,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -448,7 +444,7 @@ class _AvatarSection extends StatelessWidget {
         email,
         style: TextStyle(
           fontFamily: 'Poppins',
-          fontSize:   13,
+          fontSize: 13,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
@@ -456,28 +452,30 @@ class _AvatarSection extends StatelessWidget {
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
-          gradient:     AppColors.primaryGradient,
+          gradient: AppColors.primaryGradient,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           _roleLabel(role),
           style: const TextStyle(
-            fontFamily:  'Poppins',
-            fontSize:    12,
-            fontWeight:  FontWeight.w600,
-            color:       Colors.white,
+            fontFamily: 'Poppins',
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
           ),
         ),
       ),
     ]);
   }
 
-  String _roleLabel(String r) => {
-    'rider':        'Rider',
-    'lender':       'Lender',
-    'employee':     'Employee',
-    'head_manager': 'Head Manager',
-  }[r] ?? r;
+  String _roleLabel(String r) =>
+      {
+        'rider': 'Rider',
+        'lender': 'Lender',
+        'employee': 'Employee',
+        'head_manager': 'Head Manager',
+      }[r] ??
+      r;
 }
 
 class _ProfileInfo extends StatelessWidget {
@@ -487,18 +485,18 @@ class _ProfileInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final rows   = [
-      {'label': 'First Name',   'value': profile['first_name']   ?? '-'},
-      {'label': 'Last Name',    'value': profile['last_name']    ?? '-'},
-      {'label': 'Email',        'value': profile['email']        ?? '-'},
-      {'label': 'Phone',        'value': profile['phone_number'] ?? '-'},
-      {'label': 'Gender',       'value': profile['gender']       ?? '-'},
+    final rows = [
+      {'label': 'First Name', 'value': profile['first_name'] ?? '-'},
+      {'label': 'Last Name', 'value': profile['last_name'] ?? '-'},
+      {'label': 'Email', 'value': profile['email'] ?? '-'},
+      {'label': 'Phone', 'value': profile['phone_number'] ?? '-'},
+      {'label': 'Gender', 'value': profile['gender'] ?? '-'},
       {'label': 'Civil Status', 'value': profile['civil_status'] ?? '-'},
     ];
 
     return Container(
       decoration: BoxDecoration(
-        color:        isDark ? AppColors.darkCard : Colors.white,
+        color: isDark ? AppColors.darkCard : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
@@ -527,7 +525,7 @@ class _ProfileInfo extends StatelessWidget {
                     r['value'] as String,
                     style: const TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize:   13,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -547,10 +545,10 @@ class _ProfileInfo extends StatelessWidget {
 }
 
 class _EditForm extends StatelessWidget {
-  final GlobalKey<FormState>   formKey;
-  final TextEditingController  firstNameCtrl, lastNameCtrl, phoneCtrl;
-  final bool                   saving;
-  final VoidCallback           onSave;
+  final GlobalKey<FormState> formKey;
+  final TextEditingController firstNameCtrl, lastNameCtrl, phoneCtrl;
+  final bool saving;
+  final VoidCallback onSave;
 
   const _EditForm({
     required this.formKey,
@@ -569,28 +567,28 @@ class _EditForm extends StatelessWidget {
         TextFormField(
           controller: firstNameCtrl,
           decoration: const InputDecoration(
-            labelText:  'First Name',
+            labelText: 'First Name',
             prefixIcon: Icon(Icons.person_outline),
           ),
-          style:     const TextStyle(fontFamily: 'Poppins'),
+          style: const TextStyle(fontFamily: 'Poppins'),
           validator: (v) => (v?.trim().isEmpty ?? true) ? 'Required' : null,
         ),
         const SizedBox(height: 14),
         TextFormField(
           controller: lastNameCtrl,
           decoration: const InputDecoration(
-            labelText:  'Last Name',
+            labelText: 'Last Name',
             prefixIcon: Icon(Icons.person_outline),
           ),
-          style:     const TextStyle(fontFamily: 'Poppins'),
+          style: const TextStyle(fontFamily: 'Poppins'),
           validator: (v) => (v?.trim().isEmpty ?? true) ? 'Required' : null,
         ),
         const SizedBox(height: 14),
         TextFormField(
-          controller:   phoneCtrl,
+          controller: phoneCtrl,
           keyboardType: TextInputType.phone,
           decoration: const InputDecoration(
-            labelText:  'Phone Number',
+            labelText: 'Phone Number',
             prefixIcon: Icon(Icons.phone_outlined),
           ),
           style: const TextStyle(fontFamily: 'Poppins'),
@@ -614,9 +612,9 @@ class _EditForm extends StatelessWidget {
                     'Save Changes',
                     style: TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize:   15,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color:      Colors.white,
+                      color: Colors.white,
                     ),
                   ),
           ),
@@ -636,7 +634,7 @@ class _SettingsSection extends ConsumerWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color:        isDark ? AppColors.darkCard : Colors.white,
+        color: isDark ? AppColors.darkCard : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
@@ -644,7 +642,7 @@ class _SettingsSection extends ConsumerWidget {
       ),
       child: Column(children: [
         _SettingsTile(
-          icon:  isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+          icon: isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
           label: isDark ? 'Light Mode' : 'Dark Mode',
           onTap: () => ref.read(themeModeProvider.notifier).toggleTheme(),
         ),
@@ -653,12 +651,12 @@ class _SettingsSection extends ConsumerWidget {
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
         ),
         _SettingsTile(
-          icon:  Icons.logout_rounded,
+          icon: Icons.logout_rounded,
           label: 'Sign Out',
           color: AppColors.error,
           onTap: () => showDialog(
             context: context,
-            builder: (_) => AlertDialog(
+            builder: (dialogContext) => AlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -675,7 +673,7 @@ class _SettingsSection extends ConsumerWidget {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
                   child: const Text(
                     'Cancel',
                     style: TextStyle(fontFamily: 'Poppins'),
@@ -683,7 +681,7 @@ class _SettingsSection extends ConsumerWidget {
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    Navigator.pop(context);
+                    Navigator.of(dialogContext).pop();
                     await onSignOut();
                   },
                   style: ElevatedButton.styleFrom(
@@ -692,7 +690,7 @@ class _SettingsSection extends ConsumerWidget {
                   child: const Text(
                     'Sign Out',
                     style: TextStyle(
-                      color:      Colors.white,
+                      color: Colors.white,
                       fontFamily: 'Poppins',
                     ),
                   ),
@@ -707,9 +705,9 @@ class _SettingsSection extends ConsumerWidget {
 }
 
 class _SettingsTile extends StatelessWidget {
-  final IconData     icon;
-  final String       label;
-  final Color?       color;
+  final IconData icon;
+  final String label;
+  final Color? color;
   final VoidCallback onTap;
   const _SettingsTile({
     required this.icon,
@@ -724,22 +722,22 @@ class _SettingsTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap:        onTap,
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: ListTile(
-          leading:  Icon(icon, color: c, size: 20),
+          leading: Icon(icon, color: c, size: 20),
           title: Text(
             label,
             style: TextStyle(
-              fontFamily:  'Poppins',
-              fontSize:    14,
-              fontWeight:  FontWeight.w500,
-              color:       c,
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: c,
             ),
           ),
           trailing: Icon(
             Icons.chevron_right_rounded,
-            size:  18,
+            size: 18,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
