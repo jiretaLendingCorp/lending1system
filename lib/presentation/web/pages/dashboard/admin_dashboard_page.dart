@@ -45,7 +45,8 @@ import '../../../../providers/auth_provider.dart';
 
 // ── Providers ────────────────────────────────────────────────
 
-final dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+final dashboardStatsProvider =
+    FutureProvider<Map<String, dynamic>>((ref) async {
   final sb = Supabase.instance.client;
   final results = await Future.wait([
     sb.from('loans').select('loan_status').eq('is_archived', false),
@@ -54,29 +55,29 @@ final dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async 
     sb.from('collections').select('collection_status').eq('is_archived', false),
   ]);
 
-  final loans       = results[0] as List;
-  final payments    = results[1] as List;
-  final users       = results[2] as List;
+  final loans = results[0] as List;
+  final payments = results[1] as List;
+  final users = results[2] as List;
   final collections = results[3] as List;
 
-  final pending   = loans.where((l) => l['loan_status'] == 'pending').length;
-  final active    = loans.where((l) => l['loan_status'] == 'active').length;
-  final overdue   = loans.where((l) => l['loan_status'] == 'overdue').length;
+  final pending = loans.where((l) => l['loan_status'] == 'pending').length;
+  final active = loans.where((l) => l['loan_status'] == 'active').length;
+  final overdue = loans.where((l) => l['loan_status'] == 'overdue').length;
   final completed = loans.where((l) => l['loan_status'] == 'completed').length;
-  final underCI   = loans.where((l) => l['loan_status'] == 'under_ci').length;
+  final underCI = loans.where((l) => l['loan_status'] == 'under_ci').length;
 
   final totalRevenue = payments.fold<double>(
       0, (sum, p) => sum + ((p['amount'] as num?)?.toDouble() ?? 0));
 
   return {
-    'pending_loans':   pending,
-    'active_loans':    active,
-    'overdue_loans':   overdue,
+    'pending_loans': pending,
+    'active_loans': active,
+    'overdue_loans': overdue,
     'completed_loans': completed,
-    'under_ci_loans':  underCI,
-    'total_loans':     loans.length,
-    'total_revenue':   totalRevenue,
-    'total_users':     users.length,
+    'under_ci_loans': underCI,
+    'total_loans': loans.length,
+    'total_revenue': totalRevenue,
+    'total_users': users.length,
     'pending_collections':
         collections.where((c) => c['collection_status'] == 'pending').length,
   };
@@ -91,8 +92,8 @@ class AdminDashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stats     = ref.watch(dashboardStatsProvider);
-    final user      = ref.watch(authStateProvider).value;
+    final stats = ref.watch(dashboardStatsProvider);
+    final user = ref.watch(authStateProvider).value;
     final firstName = user?['first_name'] as String? ?? 'Admin';
 
     return Scaffold(
@@ -114,9 +115,10 @@ class AdminDashboardPage extends ConsumerWidget {
                     children: [
                       Text(
                         'Good ${_greeting()}, $firstName 👋',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -136,8 +138,8 @@ class AdminDashboardPage extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: AppColors.successLight,
                       borderRadius: BorderRadius.circular(20),
-                      border:
-                          Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                      border: Border.all(
+                          color: AppColors.success.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -195,7 +197,8 @@ class AdminDashboardPage extends ConsumerWidget {
                             //         StatefulWidget so the stream is
                             //         created ONCE in initState, not on
                             //         every build().
-                            const Expanded(flex: 2, child: _RecentActivityPanel()),
+                            const Expanded(
+                                flex: 2, child: _RecentActivityPanel()),
                           ],
                         )
                       : Column(
@@ -335,13 +338,18 @@ class _StatCard extends StatefulWidget {
 class _StatCardState extends State<_StatCard> {
   bool _hovered = false;
 
+  void _setHovered(bool hovered) {
+    if (!mounted || _hovered == hovered) return;
+    setState(() => _hovered = hovered);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(20),
@@ -363,8 +371,7 @@ class _StatCardState extends State<_StatCard> {
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black
-                        .withValues(alpha: isDark ? 0.2 : 0.04),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -385,8 +392,8 @@ class _StatCardState extends State<_StatCard> {
                         : widget.def.bg,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(widget.def.icon,
-                      color: widget.def.color, size: 22),
+                  child:
+                      Icon(widget.def.icon, color: widget.def.color, size: 22),
                 ),
                 Container(
                   padding:
@@ -428,8 +435,7 @@ class _StatCardState extends State<_StatCard> {
                     fontFamily: 'Poppins',
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color:
-                        Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -593,8 +599,7 @@ class _RecentActivityPanelState extends ConsumerState<_RecentActivityPanel> {
                       fontSize: 16,
                       fontWeight: FontWeight.w700)),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.successLight,
                   borderRadius: BorderRadius.circular(8),
@@ -631,8 +636,7 @@ class _RecentActivityPanelState extends ConsumerState<_RecentActivityPanel> {
                   final action = log['action'] as String? ?? '';
                   final description = log['description'] as String? ?? '';
                   final table = log['table_name'] as String? ?? '';
-                  final createdAt =
-                      DateTime.tryParse(log['created_at'] ?? '');
+                  final createdAt = DateTime.tryParse(log['created_at'] ?? '');
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
@@ -643,8 +647,7 @@ class _RecentActivityPanelState extends ConsumerState<_RecentActivityPanel> {
                           width: 32,
                           height: 32,
                           decoration: BoxDecoration(
-                            color: _actionColor(action)
-                                .withValues(alpha: 0.15),
+                            color: _actionColor(action).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(_actionIcon(action),
@@ -688,27 +691,43 @@ class _RecentActivityPanelState extends ConsumerState<_RecentActivityPanel> {
 
   Color _actionColor(String action) {
     switch (action) {
-      case 'create':  return AppColors.success;
-      case 'update':  return AppColors.info;
-      case 'archive': return AppColors.warning;
-      case 'approve': return AppColors.success;
-      case 'reject':  return AppColors.error;
-      case 'login':   return AppColors.primary500;
-      case 'payment': return AppColors.accent;
-      default:        return AppColors.primary400;
+      case 'create':
+        return AppColors.success;
+      case 'update':
+        return AppColors.info;
+      case 'archive':
+        return AppColors.warning;
+      case 'approve':
+        return AppColors.success;
+      case 'reject':
+        return AppColors.error;
+      case 'login':
+        return AppColors.primary500;
+      case 'payment':
+        return AppColors.accent;
+      default:
+        return AppColors.primary400;
     }
   }
 
   IconData _actionIcon(String action) {
     switch (action) {
-      case 'create':  return Icons.add_circle_outline_rounded;
-      case 'update':  return Icons.edit_rounded;
-      case 'archive': return Icons.archive_rounded;
-      case 'approve': return Icons.check_circle_outline_rounded;
-      case 'reject':  return Icons.cancel_outlined;
-      case 'login':   return Icons.login_rounded;
-      case 'payment': return Icons.payment_rounded;
-      default:        return Icons.info_outline_rounded;
+      case 'create':
+        return Icons.add_circle_outline_rounded;
+      case 'update':
+        return Icons.edit_rounded;
+      case 'archive':
+        return Icons.archive_rounded;
+      case 'approve':
+        return Icons.check_circle_outline_rounded;
+      case 'reject':
+        return Icons.cancel_outlined;
+      case 'login':
+        return Icons.login_rounded;
+      case 'payment':
+        return Icons.payment_rounded;
+      default:
+        return Icons.info_outline_rounded;
     }
   }
 
@@ -747,11 +766,9 @@ class _StatsGridSkeleton extends StatelessWidget {
           border: Border.all(
               color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
         ),
-      )
-          .animate(onPlay: (c) => c.repeat())
-          .shimmer(
-              duration: 1200.ms,
-              color: AppColors.primary100.withValues(alpha: 0.4)),
+      ).animate(onPlay: (c) => c.repeat()).shimmer(
+          duration: 1200.ms,
+          color: AppColors.primary100.withValues(alpha: 0.4)),
     );
   }
 }

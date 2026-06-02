@@ -29,15 +29,16 @@ class SafeHoverButton extends StatefulWidget {
 class _SafeHoverButtonState extends State<SafeHoverButton> {
   bool _isHovered = false;
 
+  void _setHovered(bool hovered) {
+    if (!mounted || _isHovered == hovered) return;
+    setState(() => _isHovered = hovered);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) {
-        if (mounted) setState(() => _isHovered = true);
-      },
-      onExit: (_) {
-        if (mounted) setState(() => _isHovered = false);
-      },
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(

@@ -315,6 +315,11 @@ class _NavItem extends StatefulWidget {
 class _NavItemState extends State<_NavItem> {
   bool _hovered = false;
 
+  void _setHovered(bool hovered) {
+    if (!mounted || _hovered == hovered) return;
+    setState(() => _hovered = hovered);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.hidden) return const SizedBox.shrink();
@@ -340,8 +345,8 @@ class _NavItemState extends State<_NavItem> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
+        onEnter: (_) => _setHovered(true),
+        onExit: (_) => _setHovered(false),
         cursor: SystemMouseCursors.click,
         child: Material(
           color: Colors.transparent,

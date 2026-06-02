@@ -514,11 +514,16 @@ class _TableActionBtn extends StatefulWidget {
 class _TableActionBtnState extends State<_TableActionBtn> {
   bool _hovered = false;
 
+  void _setHovered(bool hovered) {
+    if (!mounted || _hovered == hovered) return;
+    setState(() => _hovered = hovered);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
       cursor: SystemMouseCursors.click,
       child: Tooltip(
         message: widget.tooltip,
